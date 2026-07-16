@@ -1,0 +1,59 @@
+@import "tailwindcss";
+
+/* GDG Babcock Showcase — dark theme.
+   Signature motif: the four Google dots double as the rubric score meter. */
+@theme {
+  --color-bg: #0b0b0c;
+  --color-surface: #151517;
+  --color-surface-2: #1c1c1f;
+  --color-border: #26262a;
+  --color-fg: #ededef;
+  --color-muted: #9a9aa0;
+
+  /* GDG functional accents */
+  --color-blue: #4285f4; /* primary / links */
+  --color-green: #34a853; /* approved / published */
+  --color-yellow: #fbbc04; /* pending */
+  --color-red: #ea4335; /* rejected / changes requested */
+
+  --font-display: var(--font-bricolage), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains), ui-monospace, monospace;
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-fg);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Visible keyboard focus everywhere (quality floor). */
+:focus-visible {
+  outline: 2px solid var(--color-blue);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Monospace eyebrow label used across sections. */
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+}
