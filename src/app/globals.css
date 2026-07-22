@@ -25,6 +25,16 @@ html {
   color-scheme: dark;
 }
 
+html.light {
+  color-scheme: light;
+  --color-bg: #ffffff;
+  --color-surface: #f6f6f7;
+  --color-surface-2: #ececee;
+  --color-border: #dcdce0;
+  --color-fg: #0b0b0c;
+  --color-muted: #5f5f66;
+}
+
 body {
   background: var(--color-bg);
   color: var(--color-fg);

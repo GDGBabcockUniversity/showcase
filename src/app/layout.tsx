@@ -26,6 +26,13 @@ export default function RootLayout({
       lang="en"
       className={`${bricolage.variable} ${inter.variable} ${jetbrains.variable} h-full`}
     >
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `try{if(localStorage.getItem('theme')==='light')document.documentElement.classList.add('light')}catch{}`,
+          }}
+        />
+      </head>
       <body className="min-h-full flex flex-col">{children}</body>
     </html>
   );
