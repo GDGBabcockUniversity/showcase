@@ -1,0 +1,340 @@
+import type { Metadata } from "next";
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { Nav } from "@/components/nav";
+import { Footer } from "@/components/footer";
+import { PublishedStamp } from "@/components/dots";
+import { UpvoteButton } from "@/components/upvote-button";
+import { SAMPLE_PROJECTS } from "@/lib/sample";
+import { TYPE_LABEL } from "@/lib/departments";
+import { coverGradient } from "@/lib/cover";
+import { engagementScore, type Interactions } from "@/lib/gauge";
+
+export async function generateStaticParams() {
+  return SAMPLE_PROJECTS.map((p) => ({ id: p.id }));
+}
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { id } = await params;
+  const project = SAMPLE_PROJECTS.find((item) => item.id === id);
+  if (!project) return { title: "Project not found" };
+  return {
+    title: `${project.title} — GDG Babcock Showcase`,
+    description: project.summary,
+  };
+}
+
+const METRIC_COLORS = {
+  views: "var(--color-blue)",
+  clicks: "var(--color-red)",
+  likes: "var(--color-yellow)",
+  comments: "var(--color-green)",
+} as const;
+
+const METRIC_HALF = { views: 400, clicks: 80, likes: 40, comments: 15 } as const;
+
+function contribution(metric: keyof Interactions, value: number) {
+  const half = METRIC_HALF[metric];
+  return value / (value + half);
+}
+
+function MomentumDots({ p }: { p: Interactions }) {
+  const metrics: (keyof Interactions)[] = ["views", "clicks", "likes", "comments"];
+  return (
+    <span
+      className="inline-flex items-center gap-2.5"
+      aria-label="Momentum by signal"
+    >
+      {metrics.map((m) => {
+        const c = contribution(m, p[m]);
+        return (
+          <span
+            key={m}
+            className="relative flex h-4 w-4 items-center justify-center rounded-full"
+            style={{ boxShadow: `inset 0 0 0 1px ${METRIC_COLORS[m]}` }}
+          >
+            <span
+              className="rounded-full transition-all"
+              style={{
+                background: METRIC_COLORS[m],
+                width: `${4 + c * 10}px`,
+                height: `${4 + c * 10}px`,
+              }}
+            />
+          </span>
+        );
+      })}
+    </span>
+  );
+}
+
+export default async function ProjectPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+  const p = SAMPLE_PROJECTS.find((item) => item.id === id);
+  if (!p) notFound();
+
+  const engagement = engagementScore(p);
+
+  const ranked = [...SAMPLE_PROJECTS].sort(
+    (a, b) => engagementScore(b) - engagementScore(a),
+  );
+  const rank = ranked.findIndex((x) => x.id === p.id) + 1;
+  const total = ranked.length;
+
+  const related = [
+    ...SAMPLE_PROJECTS.filter((i) => i.id !== p.id && i.department === p.department),
+    ...SAMPLE_PROJECTS.filter((i) => i.id !== p.id && i.department !== p.department),
+  ].slice(0, 4);
+
+  const metrics: { key: keyof Interactions; label: string }[] = [
+    { key: "views", label: "Views" },
+    { key: "clicks", label: "Clicks" },
+    { key: "likes", label: "Likes" },
+    { key: "comments", label: "Comments" },
+  ];
+
+  return (
+    <>
+      <Nav />
+      <main className="mx-auto max-w-6xl px-5 py-10 sm:py-14">
+        <Link
+          href="/feed"
+          className="font-mono text-[11px] uppercase tracking-wider text-muted transition-colors hover:text-fg"
+        >
+          ← Back to the board
+        </Link>
+
+        {/* Header row */}
+        <header className="mt-8 grid gap-8 border-b border-border pb-8 sm:grid-cols-[1fr_auto] sm:items-start">
+          <div className="min-w-0">
+            <p className="font-mono text-[10px] uppercase tracking-wider text-muted">
+              {p.department} · {TYPE_LABEL[p.type]}
+            </p>
+            <h1 className="mt-3 font-display text-[2.75rem] font-bold leading-[0.95] tracking-tight sm:text-6xl">
+              {p.title}
+            </h1>
+            <p className="mt-5 max-w-2xl font-display text-2xl italic leading-tight tracking-tight text-muted sm:text-3xl">
+              {p.summary}
+            </p>
+            <p className="mt-6 font-mono text-xs uppercase tracking-wider text-muted">
+              Shipped by <span className="text-fg">{p.by}</span>
+            </p>
+          </div>
+
+          <div className="flex flex-col items-start gap-3 sm:items-end">
+            <PublishedStamp />
+            <UpvoteButton id={p.id} initial={p.likes} size="lg" />
+            <a
+              href="#"
+              className="font-mono text-[11px] uppercase tracking-wider text-blue hover:underline"
+            >
+              Visit project ↗
+            </a>
+          </div>
+        </header>
+        <div className="mt-10 grid gap-10 lg:grid-cols-[minmax(0,1fr)_320px]">
+          {/* Left column */}
+          <div className="min-w-0">
+            {/* Cover cell — framed like a film cell */}
+            <figure id="overview">
+              <div className="flex items-center justify-between font-mono text-[10px] uppercase tracking-wider text-muted">
+                <span>// cover</span>
+                <span>01 / 01</span>
+              </div>
+              <div
+                className="mt-2 aspect-[16/9] w-full rounded-2xl"
+                style={{ background: coverGradient(p.title) }}
+                aria-hidden
+              />
+            </figure>
+
+            {/* About */}
+            <section className="mt-12">
+              <p className="eyebrow">About the build</p>
+              <p className="mt-4 max-w-2xl text-base leading-relaxed text-fg">
+                {p.summary}
+              </p>
+              <p className="mt-4 max-w-2xl text-sm leading-relaxed text-muted">
+                Filed under {p.department.toLowerCase()} as a{" "}
+                {TYPE_LABEL[p.type].toLowerCase()} project. Every submission is
+                read by a reviewer before it lands on the board, so being here
+                means someone signed off on what {p.by.split(" ")[0]} shipped.
+              </p>
+            </section>
+
+            {/* Momentum */}
+            <section id="momentum" className="mt-12 border-t border-border pt-10">
+              <div className="flex items-baseline justify-between gap-6">
+                <div>
+                  <p className="eyebrow">Momentum</p>
+                  <h2 className="mt-2 font-display text-2xl font-semibold tracking-tight">
+                    How this project is being received
+                  </h2>
+                </div>
+                <span className="font-display text-5xl font-semibold tabular-nums">
+                  {engagement.toFixed(1)}
+                </span>
+              </div>
+
+              <div className="mt-8 grid gap-px overflow-hidden rounded-2xl border border-border bg-border sm:grid-cols-4">
+                {metrics.map((m) => {
+                  const c = contribution(m.key, p[m.key]);
+                  return (
+                    <div key={m.key} className="bg-surface p-5">
+                      <div className="flex items-center justify-between">
+                        <p className="font-mono text-[10px] uppercase tracking-wider text-muted">
+                          {m.label}
+                        </p>
+                        <span
+                          className="h-2 w-2 rounded-full"
+                          style={{ background: METRIC_COLORS[m.key] }}
+                        />
+                      </div>
+                      <p className="mt-3 font-display text-3xl font-semibold tabular-nums">
+                        {p[m.key].toLocaleString()}
+                      </p>
+                      <div className="mt-3 h-1 w-full rounded-full bg-bg">
+                        <div
+                          className="h-full rounded-full"
+                          style={{
+                            width: `${Math.round(c * 100)}%`,
+                            background: METRIC_COLORS[m.key],
+                          }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <p className="mt-4 max-w-2xl text-xs text-muted">
+                Signal is a weighted composite of the four interactions above.
+                Clicks pay most — a click means the visitor left this page for
+                the project itself.
+              </p>
+            </section>
+
+            {/* Related */}
+            <section id="related" className="mt-12 border-t border-border pt-10">
+              <div className="flex items-baseline justify-between gap-6">
+                <div>
+                  <p className="eyebrow">Related on the board</p>
+                  <h2 className="mt-2 font-display text-2xl font-semibold tracking-tight">
+                    Next to look at
+                  </h2>
+                </div>
+                <Link href="/feed" className="font-mono text-[11px] uppercase tracking-wider text-blue hover:underline">
+                  All projects →
+                </Link>
+              </div>
+              <ol className="mt-6 divide-y divide-border border-y border-border">
+                {related.map((item, i) => (
+                  <li key={item.id}>
+                    <Link
+                      href={`/project/${item.id}`}
+                      className="group grid grid-cols-[2rem_1fr_auto] items-center gap-4 py-4"
+                    >
+                      <span className="font-mono text-xs text-muted tabular-nums">
+                        № {String(i + 1).padStart(2, "0")}
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block truncate font-display text-lg font-semibold group-hover:text-blue">
+                          {item.title}
+                        </span>
+                        <span className="block truncate font-mono text-[11px] uppercase tracking-wider text-muted">
+                          {item.department} · {TYPE_LABEL[item.type]}
+                        </span>
+                      </span>
+                      <span className="flex items-center gap-3">
+                        <MomentumDots p={item} />
+                        <span className="w-10 text-right font-mono text-xs text-blue tabular-nums">
+                          {engagementScore(item).toFixed(1)}
+                        </span>
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ol>
+            </section>
+          </div>
+
+          {/* Right rail */}
+          <aside className="space-y-6 lg:sticky lg:top-24 lg:self-start">
+            {/* Rank card — the moment */}
+            <div className="rounded-2xl border border-border bg-surface p-6">
+              <p className="eyebrow">On the board</p>
+              <div className="mt-3 flex items-baseline gap-2">
+                <span className="font-mono text-2xl text-muted">№</span>
+                <span className="font-display text-6xl font-bold leading-none tabular-nums">
+                  {String(rank).padStart(2, "0")}
+                </span>
+                <span className="font-mono text-xs text-muted">of {total}</span>
+              </div>
+              <p className="mt-3 font-mono text-[11px] uppercase tracking-wider text-muted">
+                Ranked by community signal, updated live.
+              </p>
+              <div className="mt-5 border-t border-border pt-4">
+                <p className="font-mono text-[10px] uppercase tracking-wider text-muted">
+                  Signal now
+                </p>
+                <div className="mt-2 flex items-center justify-between gap-3">
+                  <MomentumDots p={p} />
+                  <span className="font-display text-2xl font-semibold tabular-nums">
+                    {engagement.toFixed(1)}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Meta rail */}
+            <dl className="rounded-2xl border border-border bg-surface p-6">
+              <p className="eyebrow">Project info</p>
+              <div className="mt-4 divide-y divide-border">
+                {[
+                  { label: "Maker", value: p.by },
+                  { label: "Department", value: p.department },
+                  { label: "Type", value: TYPE_LABEL[p.type] },
+                  { label: "Status", value: "Published" },
+                ].map((row) => (
+                  <div
+                    key={row.label}
+                    className="flex items-baseline justify-between gap-4 py-3 first:pt-0 last:pb-0"
+                  >
+                    <dt className="font-mono text-[10px] uppercase tracking-wider text-muted">
+                      {row.label}
+                    </dt>
+                    <dd className="text-right text-sm font-medium">{row.value}</dd>
+                  </div>
+                ))}
+              </div>
+            </dl>
+
+            {/* Rubric note */}
+            <div className="rounded-2xl border border-blue/25 bg-blue/5 p-6">
+              <p className="eyebrow text-blue/90">Reviewed</p>
+              <p className="mt-3 text-sm leading-relaxed text-muted">
+                Read end-to-end by a GDG reviewer against the campus rubric
+                before it went live. Rejected drafts never appear on the board.
+              </p>
+              <Link
+                href="/#rubric"
+                className="mt-4 inline-flex items-center gap-1 font-mono text-[11px] uppercase tracking-wider text-blue hover:underline"
+              >
+                See the rubric →
+              </Link>
+            </div>
+          </aside>
+        </div>
+      </main>
+      <Footer />
+    </>
+  );
+}
