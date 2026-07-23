@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect, useRef, useState, type DragEvent } from "react";
 import { DEPARTMENTS, PROJECT_TYPES, TYPE_LABEL } from "@/lib/departments";
 
 export type SubmitState = {
@@ -35,6 +35,94 @@ const inputClass =
   "w-full rounded-xl border border-border bg-bg px-3 py-2 text-sm text-fg outline-none transition-colors placeholder:text-muted focus:border-blue/60";
 const labelClass = "block font-mono text-[10px] uppercase tracking-wider text-muted";
 const errClass = "mt-1 font-mono text-[11px] text-red";
+
+function FileDrop({
+  id,
+  name,
+  multiple,
+  required,
+  accept = "image/png,image/jpeg,image/webp",
+  hint,
+}: {
+  id: string;
+  name: string;
+  multiple?: boolean;
+  required?: boolean;
+  accept?: string;
+  hint: string;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [over, setOver] = useState(false);
+  const [previews, setPreviews] = useState<{ name: string; url: string }[]>([]);
+
+  useEffect(() => () => previews.forEach((p) => URL.revokeObjectURL(p.url)), [previews]);
+
+  function sync() {
+    const files = inputRef.current?.files;
+    setPreviews((prev) => {
+      prev.forEach((p) => URL.revokeObjectURL(p.url));
+      return files
+        ? Array.from(files).map((f) => ({ name: f.name, url: URL.createObjectURL(f) }))
+        : [];
+    });
+  }
+
+  function onDrop(e: DragEvent<HTMLLabelElement>) {
+    e.preventDefault();
+    setOver(false);
+    if (!inputRef.current) return;
+    const dt = new DataTransfer();
+    const incoming = Array.from(e.dataTransfer.files).filter((f) =>
+      accept.split(",").some((a) => f.type === a.trim()),
+    );
+    (multiple ? incoming : incoming.slice(0, 1)).forEach((f) => dt.items.add(f));
+    if (dt.files.length === 0) return;
+    inputRef.current.files = dt.files;
+    sync();
+  }
+
+  return (
+    <label
+      htmlFor={id}
+      onDragOver={(e) => {
+        e.preventDefault();
+        setOver(true);
+      }}
+      onDragLeave={() => setOver(false)}
+      onDrop={onDrop}
+      className={`mt-2 flex cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border border-dashed px-3 py-6 text-center text-xs transition-colors ${
+        over ? "border-blue bg-blue/5 text-fg" : "border-border bg-bg text-muted hover:border-blue/60"
+      }`}
+    >
+      {previews.length > 0 ? (
+        <div className="flex flex-wrap justify-center gap-2">
+          {previews.map((p) => (
+            <img
+              key={p.url}
+              src={p.url}
+              alt={p.name}
+              className="h-20 w-20 rounded-lg border border-border object-cover"
+            />
+          ))}
+        </div>
+      ) : (
+        <span className="font-medium text-fg">Drop or click to upload</span>
+      )}
+      <span className="font-mono text-[10px] uppercase tracking-wider">{hint}</span>
+      <input
+        ref={inputRef}
+        id={id}
+        name={name}
+        type="file"
+        accept={accept}
+        multiple={multiple}
+        required={required}
+        onChange={sync}
+        className="sr-only"
+      />
+    </label>
+  );
+}
 
 export function SubmitForm({
   action,
@@ -163,36 +251,16 @@ export function SubmitForm({
 
       <div className="grid gap-5 sm:grid-cols-2">
         <div>
-          <label htmlFor="cover" className={labelClass}>Cover image</label>
-          <input
-            id="cover"
-            name="cover"
-            type="file"
-            accept="image/png,image/jpeg,image/webp"
-            required
-            className="mt-2 block w-full text-sm text-fg file:mr-3 file:rounded-full file:border file:border-border file:bg-surface file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-fg hover:file:border-blue/60"
-          />
-          <p className="mt-1 font-mono text-[10px] uppercase tracking-wider text-muted">
-            PNG / JPG / WEBP · ≤ 4 MB
-          </p>
+          <span className={labelClass}>Cover image</span>
+          <FileDrop id="cover" name="cover" required hint="PNG / JPG / WEBP · ≤ 4 MB" />
           {state.errors?.cover && <p className={errClass}>{state.errors.cover}</p>}
         </div>
 
         <div>
-          <label htmlFor="media" className={labelClass}>
+          <span className={labelClass}>
             More media <span className="text-muted/70">(optional)</span>
-          </label>
-          <input
-            id="media"
-            name="media"
-            type="file"
-            accept="image/png,image/jpeg,image/webp"
-            multiple
-            className="mt-2 block w-full text-sm text-fg file:mr-3 file:rounded-full file:border file:border-border file:bg-surface file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-fg hover:file:border-blue/60"
-          />
-          <p className="mt-1 font-mono text-[10px] uppercase tracking-wider text-muted">
-            Up to 4 · 4 MB each
-          </p>
+          </span>
+          <FileDrop id="media" name="media" multiple hint="Up to 4 · 4 MB each" />
           {state.errors?.media && <p className={errClass}>{state.errors.media}</p>}
         </div>
       </div>
