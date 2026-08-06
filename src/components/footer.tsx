@@ -16,7 +16,7 @@ export function Footer() {
           <Link href="/this-month" className="hover:text-fg">
             This Month
           </Link>
-          <Link href="/feed#signal-model" className="hover:text-fg">
+          <Link href="/signal-model" className="hover:text-fg">
             Signal model
           </Link>
         </div>
