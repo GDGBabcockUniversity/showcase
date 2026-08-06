@@ -95,7 +95,7 @@ export default async function ProjectPage({
     getAllProjects(),
     session ? getLikedProjectIds(session.user.id) : Promise.resolve(new Set<string>()),
     getCommentsForProject(id),
-    recordView(id, session?.user.id),
+    recordView(id),
   ]);
   const ranked = [...allProjects].sort(
     (a, b) => engagementScore(b) - engagementScore(a),

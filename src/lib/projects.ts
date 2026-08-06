@@ -3,6 +3,7 @@ import { count, desc, eq } from "drizzle-orm";
 import type { PgTable } from "drizzle-orm/pg-core";
 import { db } from "@/db";
 import { click, comment, like, project, user, view } from "@/db/schema";
+import { actorKey } from "@/lib/actor";
 import type { ProjectType } from "@/lib/departments";
 import { engagementScore, type Interactions } from "@/lib/gauge";
 
@@ -129,6 +130,10 @@ export async function getCommentsForProject(projectId: string): Promise<ProjectC
     .orderBy(desc(comment.createdAt));
 }
 
-export async function recordView(projectId: string, userId?: string) {
-  await db.insert(view).values({ id: randomUUID(), projectId, userId: userId ?? null });
+export async function recordView(projectId: string) {
+  const { key, userId } = await actorKey();
+  await db
+    .insert(view)
+    .values({ id: randomUUID(), projectId, userId, actorKey: key })
+    .onConflictDoNothing();
 }

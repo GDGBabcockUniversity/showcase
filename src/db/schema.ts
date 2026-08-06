@@ -65,19 +65,29 @@ export const project = pgTable("project", {
 
 // views/clicks/likes/comments are each an event log, not a counter — counts are
 // computed on the fly (COUNT(*) grouped by project) so there's nothing to keep in sync.
+//
+// actorKey identifies who interacted: the account id when signed in, otherwise a
+// hash of IP + user agent (see src/lib/actor.ts). The unique index on
+// (project, actor) is what makes these count unique people, not page loads.
 export const view = pgTable("view", {
   id: text("id").primaryKey(),
   projectId: text("project_id").notNull().references(() => project.id, { onDelete: "cascade" }),
   userId: text("user_id").references(() => user.id, { onDelete: "cascade" }),
+  actorKey: text("actor_key").notNull(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
-});
+}, (t) => [
+  uniqueIndex("view_project_actor_idx").on(t.projectId, t.actorKey),
+]);
 
 export const click = pgTable("click", {
   id: text("id").primaryKey(),
   projectId: text("project_id").notNull().references(() => project.id, { onDelete: "cascade" }),
   userId: text("user_id").references(() => user.id, { onDelete: "cascade" }),
+  actorKey: text("actor_key").notNull(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
-});
+}, (t) => [
+  uniqueIndex("click_project_actor_idx").on(t.projectId, t.actorKey),
+]);
 
 // One like per (project, user) — the unique index is what makes toggling idempotent.
 export const like = pgTable("like", {

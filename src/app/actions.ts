@@ -8,6 +8,7 @@ import { and, eq } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { db } from "@/db";
 import { click, comment, like } from "@/db/schema";
+import { actorKey } from "@/lib/actor";
 
 async function requireSession() {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -54,7 +55,10 @@ export async function addComment(
 
 // Clicks are anonymous-friendly — don't gate "visit project" behind login.
 export async function logClick(projectId: string) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  await db.insert(click).values({ id: randomUUID(), projectId, userId: session?.user.id ?? null });
+  const { key, userId } = await actorKey();
+  await db
+    .insert(click)
+    .values({ id: randomUUID(), projectId, userId, actorKey: key })
+    .onConflictDoNothing();
   revalidatePath(`/project/${projectId}`);
 }
