@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { Bricolage_Grotesque, Inter, JetBrains_Mono } from "next/font/google";
+import { AuthModal } from "@/components/auth-modal";
 import "./globals.css";
 
 const bricolage = Bricolage_Grotesque({
@@ -33,7 +35,12 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        {children}
+        <Suspense fallback={null}>
+          <AuthModal />
+        </Suspense>
+      </body>
     </html>
   );
 }

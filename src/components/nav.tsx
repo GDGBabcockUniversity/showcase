@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { AuthStatus } from "@/components/auth-status";
 
 const LINKS = [
   { href: "/", label: "Home" },
@@ -55,6 +56,7 @@ export function Nav() {
             <span className="h-1.5 w-1.5 rounded-full bg-green" /> live
           </span>
           <ThemeToggle />
+          <AuthStatus />
         </div>
       </nav>
     </header>
