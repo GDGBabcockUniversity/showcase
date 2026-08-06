@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { coverGradient } from "@/lib/cover";
-import type { SampleProject } from "@/lib/sample";
+import type { Project } from "@/lib/projects";
 import { engagementScore } from "@/lib/gauge";
 
-export function ProjectCard({ p }: { p: SampleProject }) {
+export function ProjectCard({ p }: { p: Project }) {
   return (
     <Link
       href={`/project/${p.id}`}

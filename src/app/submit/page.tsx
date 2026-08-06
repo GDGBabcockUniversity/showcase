@@ -1,8 +1,14 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
+import { redirect } from "next/navigation";
+import { randomUUID } from "node:crypto";
 import { Nav } from "@/components/nav";
 import { Footer } from "@/components/footer";
 import { Dots } from "@/components/dots";
 import { DEPARTMENTS, PROJECT_TYPES } from "@/lib/departments";
+import { auth } from "@/lib/auth";
+import { db } from "@/db";
+import { project } from "@/db/schema";
 import { SubmitForm, type SubmitState } from "./submit-form";
 
 export const metadata: Metadata = {
@@ -18,9 +24,13 @@ const MAX_COLLABORATORS = 5;
 async function submitProject(_: SubmitState, formData: FormData): Promise<SubmitState> {
   "use server";
 
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session) {
+    redirect("/?authModal=1&redirect=/submit");
+  }
+
   const title = String(formData.get("title") ?? "").trim();
   const summary = String(formData.get("summary") ?? "").trim();
-  const by = String(formData.get("by") ?? "").trim();
   const department = String(formData.get("department") ?? "");
   const type = String(formData.get("type") ?? "");
   const url = String(formData.get("url") ?? "").trim();
@@ -36,7 +46,6 @@ async function submitProject(_: SubmitState, formData: FormData): Promise<Submit
   if (title.length > 80) errors.title = "Under 80 characters.";
   if (summary.length < 20) errors.summary = "One full sentence, at least 20 characters.";
   if (summary.length > 240) errors.summary = "Under 240 characters.";
-  if (by.length < 2) errors.by = "Who's shipping it?";
   if (!(DEPARTMENTS as readonly string[]).includes(department)) errors.department = "Pick a department.";
   if (!(PROJECT_TYPES as readonly string[]).includes(type)) errors.type = "Pick a type.";
   if (url) {
@@ -74,26 +83,23 @@ async function submitProject(_: SubmitState, formData: FormData): Promise<Submit
     return { ok: false, errors, message: "Fix the highlighted fields." };
   }
 
-  // ponytail: no persistence yet — files are validated then dropped. Wire cover/media to
-  // object storage (S3 / R2 / Supabase Storage) and the rest to a DB when submissions stop
-  // being sample data. Validation shape doesn't change when storage lands.
-  console.log("[submit]", {
+  // ponytail: cover/media files are validated then dropped — still need to wire them to
+  // object storage (S3 / R2 / Supabase Storage). Only the DB row lands for now.
+  await db.insert(project).values({
+    id: randomUUID(),
+    userId: session.user.id,
     title,
     summary,
-    by,
-    collaborators,
     department,
     type,
-    url,
-    cover: cover instanceof File ? { name: cover.name, size: cover.size } : null,
-    media: media.map((f) => ({ name: f.name, size: f.size })),
+    url: url || "",
+    collaborators,
   });
 
   return {
     ok: true,
     receipt: {
       title,
-      by,
       department,
       collaborators,
       media: 1 + media.length,

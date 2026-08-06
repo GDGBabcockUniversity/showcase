@@ -1,14 +1,21 @@
 import Link from "next/link";
+import { headers } from "next/headers";
 import { Nav } from "@/components/nav";
 import { Footer } from "@/components/footer";
 import { Dots } from "@/components/dots";
 import { ProductRow } from "@/components/product-row";
-import { SAMPLE_PROJECTS } from "@/lib/sample";
+import { getAllProjects, getLikedProjectIds } from "@/lib/projects";
+import { auth } from "@/lib/auth";
 import { PROJECT_TYPES, TYPE_LABEL } from "@/lib/departments";
 import { engagementScore } from "@/lib/gauge";
 
-export default function Home() {
-  const ranked = [...SAMPLE_PROJECTS].sort(
+export default async function Home() {
+  const session = await auth.api.getSession({ headers: await headers() });
+  const [projects, likedIds] = await Promise.all([
+    getAllProjects(),
+    session ? getLikedProjectIds(session.user.id) : Promise.resolve(new Set<string>()),
+  ]);
+  const ranked = [...projects].sort(
     (a, b) => engagementScore(b) - engagementScore(a),
   );
   const today = ranked.slice(0, 5);
@@ -16,7 +23,7 @@ export default function Home() {
 
   // Top makers: aggregate signal per person, ordered.
   const makers = Object.entries(
-    SAMPLE_PROJECTS.reduce<Record<string, { count: number; signal: number; dept: string }>>(
+    projects.reduce<Record<string, { count: number; signal: number; dept: string }>>(
       (acc, p) => {
         const entry = acc[p.by] ?? { count: 0, signal: 0, dept: p.department };
         entry.count += 1;
@@ -103,7 +110,7 @@ export default function Home() {
             </div>
             <div>
               {today.map((p, i) => (
-                <ProductRow key={p.id} p={p} rank={i + 1} />
+                <ProductRow key={p.id} p={p} rank={i + 1} liked={likedIds.has(p.id)} />
               ))}
             </div>
 
@@ -120,7 +127,7 @@ export default function Home() {
             </div>
             <div>
               {thisWeek.map((p, i) => (
-                <ProductRow key={p.id} p={p} rank={i + 6} />
+                <ProductRow key={p.id} p={p} rank={i + 6} liked={likedIds.has(p.id)} />
               ))}
             </div>
           </div>
@@ -169,7 +176,7 @@ export default function Home() {
             <div className="rounded-2xl border border-blue/25 bg-blue/5 p-5">
               <p className="eyebrow">Launching next</p>
               <p className="mt-2 font-display text-lg font-semibold">
-                Put your project on tomorrow's board.
+                Put your project on tomorrow&apos;s board.
               </p>
               <p className="mt-2 text-sm text-muted">
                 Under five minutes to file: a link, a two-line summary, a
@@ -190,7 +197,7 @@ export default function Home() {
                 likes, then comments, then views. Read the full formula.
               </p>
               <Link
-                href="/feed#signal-model"
+                href="/signal-model"
                 className="mt-4 inline-flex items-center gap-2 text-sm text-blue hover:underline"
               >
                 How ranking works →

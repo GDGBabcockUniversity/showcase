@@ -10,7 +10,6 @@ export type SubmitState = {
     Record<
       | "title"
       | "summary"
-      | "by"
       | "collaborators"
       | "department"
       | "type"
@@ -22,7 +21,6 @@ export type SubmitState = {
   >;
   receipt?: {
     title: string;
-    by: string;
     department: string;
     collaborators: string[];
     media: number;
@@ -139,7 +137,7 @@ export function SubmitForm({
           {state.receipt.title} is in the queue.
         </h2>
         <p className="mt-2 text-sm text-muted">
-          Submitted by {state.receipt.by}
+          Filed
           {state.receipt.collaborators.length > 0
             ? ` with ${state.receipt.collaborators.join(", ")}`
             : ""}
@@ -198,36 +196,21 @@ export function SubmitForm({
         {state.errors?.url && <p className={errClass}>{state.errors.url}</p>}
       </div>
 
-      <div className="grid gap-5 sm:grid-cols-2">
-        <div>
-          <label htmlFor="by" className={labelClass}>Your name</label>
-          <input
-            id="by"
-            name="by"
-            required
-            maxLength={80}
-            placeholder="Peace Akinyemi"
-            className={`mt-2 ${inputClass}`}
-          />
-          {state.errors?.by && <p className={errClass}>{state.errors.by}</p>}
-        </div>
-
-        <div>
-          <label htmlFor="department" className={labelClass}>Department</label>
-          <select
-            id="department"
-            name="department"
-            required
-            defaultValue=""
-            className={`mt-2 ${inputClass}`}
-          >
-            <option value="" disabled>Pick one</option>
-            {DEPARTMENTS.map((d) => (
-              <option key={d} value={d}>{d}</option>
-            ))}
-          </select>
-          {state.errors?.department && <p className={errClass}>{state.errors.department}</p>}
-        </div>
+      <div>
+        <label htmlFor="department" className={labelClass}>Department</label>
+        <select
+          id="department"
+          name="department"
+          required
+          defaultValue=""
+          className={`mt-2 ${inputClass}`}
+        >
+          <option value="" disabled>Pick one</option>
+          {DEPARTMENTS.map((d) => (
+            <option key={d} value={d}>{d}</option>
+          ))}
+        </select>
+        {state.errors?.department && <p className={errClass}>{state.errors.department}</p>}
       </div>
 
       <div>

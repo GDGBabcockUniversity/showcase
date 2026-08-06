@@ -1,10 +1,18 @@
+import { headers } from "next/headers";
 import { Nav } from "@/components/nav";
 import { Footer } from "@/components/footer";
 import { Dots } from "@/components/dots";
 import { ProductRow } from "@/components/product-row";
-import { LAST_MONTH_LABEL, LAST_MONTH_TOP } from "@/lib/sample";
+import { LAST_MONTH_LABEL, getLikedProjectIds, getTopThreeProjects } from "@/lib/projects";
+import { auth } from "@/lib/auth";
 
-export default function ThisMonthPage() {
+export default async function ThisMonthPage() {
+  const session = await auth.api.getSession({ headers: await headers() });
+  const [topThree, likedIds] = await Promise.all([
+    getTopThreeProjects(),
+    session ? getLikedProjectIds(session.user.id) : Promise.resolve(new Set<string>()),
+  ]);
+
   return (
     <>
       <Nav />
@@ -24,8 +32,8 @@ export default function ThisMonthPage() {
         </section>
 
         <div className="mt-6">
-          {LAST_MONTH_TOP.map((project, index) => (
-            <ProductRow key={project.id} p={project} rank={index + 1} />
+          {topThree.map((project, index) => (
+            <ProductRow key={project.id} p={project} rank={index + 1} liked={likedIds.has(project.id)} />
           ))}
         </div>
       </main>

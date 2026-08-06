@@ -1,18 +1,25 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { Nav } from "@/components/nav";
 import { Footer } from "@/components/footer";
 import { PublishedStamp } from "@/components/dots";
 import { UpvoteButton } from "@/components/upvote-button";
-import { SAMPLE_PROJECTS } from "@/lib/sample";
+import { CommentForm } from "@/components/comment-form";
+import { VisitLink } from "@/components/visit-link";
+import { SignInTrigger } from "@/components/sign-in-trigger";
+import {
+  getAllProjects,
+  getCommentsForProject,
+  getLikedProjectIds,
+  getProjectById,
+  recordView,
+} from "@/lib/projects";
+import { auth } from "@/lib/auth";
 import { TYPE_LABEL } from "@/lib/departments";
 import { coverGradient } from "@/lib/cover";
 import { engagementScore, type Interactions } from "@/lib/gauge";
-
-export async function generateStaticParams() {
-  return SAMPLE_PROJECTS.map((p) => ({ id: p.id }));
-}
 
 export async function generateMetadata({
   params,
@@ -20,7 +27,7 @@ export async function generateMetadata({
   params: Promise<{ id: string }>;
 }): Promise<Metadata> {
   const { id } = await params;
-  const project = SAMPLE_PROJECTS.find((item) => item.id === id);
+  const project = await getProjectById(id);
   if (!project) return { title: "Project not found" };
   return {
     title: `${project.title} — GDG Babcock Showcase`,
@@ -78,20 +85,27 @@ export default async function ProjectPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const p = SAMPLE_PROJECTS.find((item) => item.id === id);
+  const p = await getProjectById(id);
   if (!p) notFound();
 
   const engagement = engagementScore(p);
 
-  const ranked = [...SAMPLE_PROJECTS].sort(
+  const session = await auth.api.getSession({ headers: await headers() });
+  const [allProjects, likedIds, comments] = await Promise.all([
+    getAllProjects(),
+    session ? getLikedProjectIds(session.user.id) : Promise.resolve(new Set<string>()),
+    getCommentsForProject(id),
+    recordView(id, session?.user.id),
+  ]);
+  const ranked = [...allProjects].sort(
     (a, b) => engagementScore(b) - engagementScore(a),
   );
   const rank = ranked.findIndex((x) => x.id === p.id) + 1;
   const total = ranked.length;
 
   const related = [
-    ...SAMPLE_PROJECTS.filter((i) => i.id !== p.id && i.department === p.department),
-    ...SAMPLE_PROJECTS.filter((i) => i.id !== p.id && i.department !== p.department),
+    ...allProjects.filter((i) => i.id !== p.id && i.department === p.department),
+    ...allProjects.filter((i) => i.id !== p.id && i.department !== p.department),
   ].slice(0, 4);
 
   const metrics: { key: keyof Interactions; label: string }[] = [
@@ -131,13 +145,14 @@ export default async function ProjectPage({
 
           <div className="flex flex-col items-start gap-3 sm:items-end">
             <PublishedStamp />
-            <UpvoteButton id={p.id} initial={p.likes} size="lg" />
-            <a
-              href="#"
-              className="font-mono text-[11px] uppercase tracking-wider text-blue hover:underline"
-            >
-              Visit project ↗
-            </a>
+            <UpvoteButton
+              key={`${p.id}-${likedIds.has(p.id)}-${p.likes}`}
+              id={p.id}
+              initial={p.likes}
+              liked={likedIds.has(p.id)}
+              size="lg"
+            />
+            <VisitLink id={p.id} url={p.url} />
           </div>
         </header>
         <div className="mt-10 grid gap-10 lg:grid-cols-[minmax(0,1fr)_320px]">
@@ -220,6 +235,52 @@ export default async function ProjectPage({
                 Clicks pay most — a click means the visitor left this page for
                 the project itself.
               </p>
+            </section>
+
+            {/* Comments */}
+            <section id="comments" className="mt-12 border-t border-border pt-10">
+              <div className="flex items-baseline justify-between gap-6">
+                <div>
+                  <p className="eyebrow">Comments</p>
+                  <h2 className="mt-2 font-display text-2xl font-semibold tracking-tight">
+                    What people are saying
+                  </h2>
+                </div>
+                <span className="font-display text-3xl font-semibold tabular-nums">
+                  {comments.length}
+                </span>
+              </div>
+
+              {session ? (
+                <CommentForm projectId={p.id} />
+              ) : (
+                <p className="mt-4 text-sm text-muted">
+                  <SignInTrigger className="text-blue hover:underline">
+                    Sign in
+                  </SignInTrigger>{" "}
+                  to leave a comment.
+                </p>
+              )}
+
+              {comments.length > 0 ? (
+                <ol className="mt-6 space-y-5">
+                  {comments.map((c) => (
+                    <li key={c.id} className="border-b border-border pb-5 last:border-0">
+                      <div className="flex items-baseline justify-between gap-3">
+                        <p className="text-sm font-medium">{c.by}</p>
+                        <p className="font-mono text-[10px] uppercase tracking-wider text-muted">
+                          {c.createdAt.toLocaleDateString()}
+                        </p>
+                      </div>
+                      <p className="mt-1.5 text-sm leading-relaxed text-muted">{c.body}</p>
+                    </li>
+                  ))}
+                </ol>
+              ) : (
+                <p className="mt-6 text-sm text-muted">
+                  No comments yet — be the first to say something.
+                </p>
+              )}
             </section>
 
             {/* Related */}

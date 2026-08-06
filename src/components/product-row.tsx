@@ -17,9 +17,11 @@ type RowProject = {
 export function ProductRow({
   p,
   rank,
+  liked,
 }: {
   p: RowProject;
   rank?: number;
+  liked?: boolean;
 }) {
   const score = engagementScore(p);
 
@@ -79,7 +81,7 @@ export function ProductRow({
       </div>
 
       <div className="flex items-center gap-2">
-        <UpvoteButton id={p.id} initial={p.likes} />
+        <UpvoteButton key={`${p.id}-${!!liked}-${p.likes}`} id={p.id} initial={p.likes} liked={!!liked} />
         <UpvotePill signal={score} />
       </div>
     </Link>

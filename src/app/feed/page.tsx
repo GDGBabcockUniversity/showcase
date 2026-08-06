@@ -1,16 +1,20 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { headers } from "next/headers";
 import { Nav } from "@/components/nav";
 import { Footer } from "@/components/footer";
 import { Dots } from "@/components/dots";
 import { ProductRow } from "@/components/product-row";
 import { DepartmentSelect } from "@/components/department-select";
+import { SearchBox } from "@/components/search-box";
 import {
-  SAMPLE_PROJECTS,
-  LAST_MONTH_TOP,
+  getAllProjects,
+  getLikedProjectIds,
+  getTopThreeProjects,
   LAST_MONTH_LABEL,
-  type SampleProject,
-} from "@/lib/sample";
+  type Project,
+} from "@/lib/projects";
+import { auth } from "@/lib/auth";
 import {
   DEPARTMENTS,
   PROJECT_TYPES,
@@ -25,7 +29,7 @@ export const metadata: Metadata = {
     "Every student project on the board, ranked by real community interaction.",
 };
 
-type Search = { type?: string; dept?: string };
+type Search = { type?: string; dept?: string; q?: string };
 type Department = (typeof DEPARTMENTS)[number];
 
 function isType(v: string | undefined): v is ProjectType {
@@ -50,17 +54,30 @@ export default async function FeedPage({
   const sp = await searchParams;
   const typeFilter = isType(sp.type) ? sp.type : undefined;
   const deptFilter = isDept(sp.dept) ? sp.dept : undefined;
+  const query = sp.q?.trim().toLowerCase();
 
-  const filtered = SAMPLE_PROJECTS
+  const session = await auth.api.getSession({ headers: await headers() });
+  const [projects, likedIds] = await Promise.all([
+    getAllProjects(),
+    session ? getLikedProjectIds(session.user.id) : Promise.resolve(new Set<string>()),
+  ]);
+  const filtered = projects
     .filter((p) => !typeFilter || p.type === typeFilter)
-    .filter((p) => !deptFilter || p.department === deptFilter);
+    .filter((p) => !deptFilter || p.department === deptFilter)
+    .filter(
+      (p) =>
+        !query ||
+        p.title.toLowerCase().includes(query) ||
+        p.summary.toLowerCase().includes(query),
+    );
 
+  const lastTopThree = await getTopThreeProjects()
   const ranked = [...filtered].sort(
     (a, b) => engagementScore(b) - engagementScore(a),
   );
 
   // Fake launch-day grouping so the feed feels PH-shaped.
-  const groups: { label: string; items: SampleProject[] }[] = [
+  const groups: { label: string; items: Project[] }[] = [
     { label: "Today · July 22", items: ranked.slice(0, 4) },
     { label: "Yesterday · July 21", items: ranked.slice(4, 7) },
     { label: "Earlier this week", items: ranked.slice(7) },
@@ -69,10 +86,11 @@ export default async function FeedPage({
   const trending = ranked.slice(0, 5);
 
   const hrefFor = (next: Partial<Search>) => {
-    const merged = { type: typeFilter, dept: deptFilter, ...next };
+    const merged = { type: typeFilter, dept: deptFilter, q: sp.q, ...next };
     const params = new URLSearchParams();
     if (merged.type) params.set("type", merged.type);
     if (merged.dept) params.set("dept", merged.dept);
+    if (merged.q) params.set("q", merged.q);
     const qs = params.toString();
     return qs ? `/feed?${qs}` : "/feed";
   };
@@ -126,7 +144,10 @@ export default async function FeedPage({
               </Link>
             ))}
           </div>
-          <DepartmentSelect current={deptFilter} />
+          <div className="flex items-center gap-3">
+            <SearchBox current={sp.q} />
+            <DepartmentSelect current={deptFilter} />
+          </div>
         </div>
 
         <div className="mt-8 grid gap-10 lg:grid-cols-[minmax(0,1fr)_280px]">
@@ -146,7 +167,7 @@ export default async function FeedPage({
                     </span>
                   </div>
                   {g.items.map((p, i) => (
-                    <ProductRow key={p.id} p={p} rank={i + 1} />
+                    <ProductRow key={p.id} p={p} rank={i + 1} liked={likedIds.has(p.id)} />
                   ))}
                 </div>
               ))
@@ -228,7 +249,7 @@ export default async function FeedPage({
           </aside>
         </div>
 
-        {!typeFilter && !deptFilter && LAST_MONTH_TOP.length > 0 ? (
+        {!typeFilter && !deptFilter && lastTopThree.length > 0 ? (
           <section className="mt-12">
             <div className="flex items-baseline justify-between border-b border-border pb-3">
               <div>
@@ -241,8 +262,8 @@ export default async function FeedPage({
                 This month's picks →
               </Link>
             </div>
-            {LAST_MONTH_TOP.map((p, i) => (
-              <ProductRow key={p.id} p={p} rank={i + 1} />
+            {lastTopThree.map((p, i) => (
+              <ProductRow key={p.id} p={p} rank={i + 1} liked={likedIds.has(p.id)} />
             ))}
           </section>
         ) : null}
