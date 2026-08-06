@@ -1,0 +1,60 @@
+"use server";
+
+import { randomUUID } from "node:crypto";
+import { headers } from "next/headers";
+import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
+import { and, eq } from "drizzle-orm";
+import { auth } from "@/lib/auth";
+import { db } from "@/db";
+import { click, comment, like } from "@/db/schema";
+
+async function requireSession() {
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session) redirect("/?authModal=1");
+  return session;
+}
+
+export async function toggleLike(projectId: string) {
+  const session = await requireSession();
+  const userId = session.user.id;
+
+  const existing = await db
+    .select({ id: like.id })
+    .from(like)
+    .where(and(eq(like.projectId, projectId), eq(like.userId, userId)));
+
+  if (existing.length > 0) {
+    await db.delete(like).where(and(eq(like.projectId, projectId), eq(like.userId, userId)));
+  } else {
+    await db.insert(like).values({ id: randomUUID(), projectId, userId });
+  }
+
+  revalidatePath("/", "layout");
+}
+
+export type CommentState = { ok: boolean; error?: string };
+
+export async function addComment(
+  projectId: string,
+  _prev: CommentState,
+  formData: FormData,
+): Promise<CommentState> {
+  const session = await requireSession();
+  const body = String(formData.get("body") ?? "").trim();
+
+  if (body.length < 2) return { ok: false, error: "Say a bit more." };
+  if (body.length > 500) return { ok: false, error: "Keep it under 500 characters." };
+
+  await db.insert(comment).values({ id: randomUUID(), projectId, userId: session.user.id, body });
+
+  revalidatePath(`/project/${projectId}`);
+  return { ok: true };
+}
+
+// Clicks are anonymous-friendly — don't gate "visit project" behind login.
+export async function logClick(projectId: string) {
+  const session = await auth.api.getSession({ headers: await headers() });
+  await db.insert(click).values({ id: randomUUID(), projectId, userId: session?.user.id ?? null });
+  revalidatePath(`/project/${projectId}`);
+}

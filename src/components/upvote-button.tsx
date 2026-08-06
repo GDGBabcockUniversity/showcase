@@ -1,33 +1,37 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState, useTransition } from "react";
+import { toggleLike } from "@/app/actions";
 
+// Keyed by `${id}-${liked}-${initial}` at every call site: when the server
+// confirms new counts (after revalidation), React remounts this with fresh
+// initial state instead of needing an effect to resync props into state.
 export function UpvoteButton({
   id,
   initial,
+  liked,
   size = "sm",
 }: {
   id: string;
   initial: number;
+  liked: boolean;
   size?: "sm" | "lg";
 }) {
-  const key = `upvote:${id}`;
-  const [voted, setVoted] = useState(false);
-
-  useEffect(() => {
-    setVoted(localStorage.getItem(key) === "1");
-  }, [key]);
+  const [voted, setVoted] = useState(liked);
+  const [count, setCount] = useState(initial);
+  const [, startTransition] = useTransition();
 
   const toggle = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     const next = !voted;
     setVoted(next);
-    if (next) localStorage.setItem(key, "1");
-    else localStorage.removeItem(key);
+    setCount((c) => c + (next ? 1 : -1));
+    startTransition(async () => {
+      await toggleLike(id);
+    });
   };
 
-  const count = initial + (voted ? 1 : 0);
   const lg = size === "lg";
 
   return (
