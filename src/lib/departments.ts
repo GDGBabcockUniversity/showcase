@@ -7,6 +7,8 @@ export const DEPARTMENTS = [
   "Architecture",
 ] as const;
 
+export const LEVELS = ["100", "200", "300", "400", "500", "600"] as const;
+
 export const PROJECT_TYPES = ["coursework", "gdg-track", "personal"] as const;
 
 export type ProjectType = (typeof PROJECT_TYPES)[number];

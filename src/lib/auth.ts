@@ -11,6 +11,13 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
   },
+  user: {
+    additionalFields: {
+      // Optional so Google sign-ins, which skip the sign-up form, still work.
+      department: { type: "string", required: false, input: true },
+      level: { type: "string", required: false, input: true },
+    },
+  },
   socialProviders: {
     google: {
       clientId: process.env.GOOGLE_CLIENT_ID as string,

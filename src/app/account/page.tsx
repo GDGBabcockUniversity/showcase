@@ -101,6 +101,13 @@ export default async function AccountPage() {
                 {user.name}
               </h1>
               <p className="mt-1 truncate text-sm text-muted">{user.email}</p>
+              {(user.department || user.level) && (
+                <p className="mt-1 text-sm text-muted">
+                  {[user.department, user.level && `${user.level} level`]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </p>
+              )}
               <p className="mt-1 font-mono text-[10px] uppercase tracking-wider text-muted">
                 Member since {memberSince} · {shipped.length} shipped ·{" "}
                 {liked.length} liked

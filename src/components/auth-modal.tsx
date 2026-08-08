@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { signIn, signUp } from "@/lib/auth-client";
+import { DEPARTMENTS, LEVELS } from "@/lib/departments";
 
 const inputClass =
   "w-full rounded-xl border border-border bg-bg px-3 py-2 text-sm text-fg outline-none transition-colors placeholder:text-muted focus:border-blue/60";
@@ -21,6 +22,8 @@ export function AuthModal() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [department, setDepartment] = useState("");
+  const [level, setLevel] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const redirectTo = searchParams.get("redirect") || "/submit";
@@ -46,6 +49,8 @@ export function AuthModal() {
     setName("");
     setEmail("");
     setPassword("");
+    setDepartment("");
+    setLevel("");
     setError(null);
     setPending(false);
   }
@@ -57,7 +62,7 @@ export function AuthModal() {
     const { error } =
       mode === "signin"
         ? await signIn.email({ email, password })
-        : await signUp.email({ name, email, password });
+        : await signUp.email({ name, email, password, department, level });
     setPending(false);
     if (error) {
       setError(error.message ?? "Something went wrong.");
@@ -97,16 +102,48 @@ export function AuthModal() {
 
       <form onSubmit={onSubmit} className="mt-6 flex flex-col gap-4">
         {mode === "signup" && (
-          <div>
-            <label htmlFor="modal-name" className={labelClass}>Name</label>
-            <input
-              id="modal-name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              required
-              className={`mt-2 ${inputClass}`}
-            />
-          </div>
+          <>
+            <div>
+              <label htmlFor="modal-name" className={labelClass}>Name</label>
+              <input
+                id="modal-name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                required
+                className={`mt-2 ${inputClass}`}
+              />
+            </div>
+            <div>
+              <label htmlFor="modal-department" className={labelClass}>Department</label>
+              <select
+                id="modal-department"
+                value={department}
+                onChange={(e) => setDepartment(e.target.value)}
+                required
+                className={`mt-2 ${inputClass}`}
+              >
+                <option value="" disabled>Pick one</option>
+                {DEPARTMENTS.map((d) => (
+                  <option key={d} value={d}>{d}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label htmlFor="modal-level" className={labelClass}>Level</label>
+              <select
+                id="modal-level"
+                value={level}
+                onChange={(e) => setLevel(e.target.value)}
+                required
+                className={`mt-2 ${inputClass}`}
+              >
+                <option value="" disabled>Pick one</option>
+                {LEVELS.map((l) => (
+                  <option key={l} value={l}>{l}</option>
+                ))}
+              </select>
+            </div>
+          </>
         )}
         <div>
           <label htmlFor="modal-email" className={labelClass}>Email</label>
