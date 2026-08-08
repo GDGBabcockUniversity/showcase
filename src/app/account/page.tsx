@@ -69,7 +69,7 @@ export default async function AccountPage() {
   return (
     <>
       <Nav />
-      <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-10">
+      <main className="mx-auto w-full max-w-7xl px-5 py-8 sm:py-10">
         <section className="border-b border-border pb-8">
           <p className="eyebrow flex items-center gap-3">
             <Dots />
