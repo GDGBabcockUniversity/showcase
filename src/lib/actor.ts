@@ -6,7 +6,6 @@ import { auth } from "@/lib/auth";
 // rather than page loads. Signed-in visitors are keyed by account; everyone else
 // falls back to their IP + user agent.
 //
-// ponytail: IP + UA is a coarse fingerprint — shared NATs collapse into one
 // visitor and a new browser reads as a new one. Good enough for a campus board;
 // swap in a signed visitor cookie if the numbers ever need to be defensible.
 export async function actorKey(): Promise<{ key: string; userId: string | null }> {

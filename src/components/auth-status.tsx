@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { signOut, useSession } from "@/lib/auth-client";
 import { SignInTrigger } from "@/components/sign-in-trigger";
 
@@ -20,9 +21,12 @@ export function AuthStatus() {
 
   return (
     <div className="flex items-center gap-2">
-      <span className="hidden max-w-24 truncate text-sm text-fg sm:inline">
+      <Link
+        href="/account"
+        className="hidden max-w-24 truncate text-sm text-fg transition-colors hover:text-blue sm:inline"
+      >
         {session.user.name}
-      </span>
+      </Link>
       <button
         type="button"
         onClick={() => signOut()}

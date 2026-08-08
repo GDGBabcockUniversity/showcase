@@ -111,6 +111,26 @@ export async function getTopThreeProjects(): Promise<Project[]> {
     .slice(0, 3);
 }
 
+export async function getProjectsByUser(userId: string): Promise<Project[]> {
+  const rows = await db
+    .select(projectColumns)
+    .from(project)
+    .innerJoin(user, eq(project.userId, user.id))
+    .where(eq(project.userId, userId));
+  return attachCounts(rows);
+}
+
+export async function getLikedProjects(userId: string): Promise<Project[]> {
+  const rows = await db
+    .select(projectColumns)
+    .from(project)
+    .innerJoin(user, eq(project.userId, user.id))
+    .innerJoin(like, eq(like.projectId, project.id))
+    .where(eq(like.userId, userId))
+    .orderBy(desc(like.createdAt));
+  return attachCounts(rows);
+}
+
 export async function getLikedProjectIds(userId: string): Promise<Set<string>> {
   const rows = await db
     .select({ projectId: like.projectId })
