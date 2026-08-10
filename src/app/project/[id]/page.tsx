@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { headers } from "next/headers";
+import { after } from "next/server";
 import { notFound } from "next/navigation";
 import { Nav } from "@/components/nav";
 import { Footer } from "@/components/footer";
@@ -17,6 +18,7 @@ import {
   recordView,
 } from "@/lib/projects";
 import { auth } from "@/lib/auth";
+import { actorKey } from "@/lib/actor";
 import { TYPE_LABEL } from "@/lib/departments";
 import { coverGradient } from "@/lib/cover";
 import { engagementScore, type Interactions } from "@/lib/gauge";
@@ -91,11 +93,16 @@ export default async function ProjectPage({
   const engagement = engagementScore(p);
 
   const session = await auth.api.getSession({ headers: await headers() });
+
+  // Resolve the actor now (reads request headers, only legal during render),
+  // then write the view after the response is sent so it never blocks the page.
+  const actor = await actorKey(session);
+  after(() => recordView(id, actor));
+
   const [allProjects, likedIds, comments] = await Promise.all([
     getAllProjects(),
     session ? getLikedProjectIds(session.user.id) : Promise.resolve(new Set<string>()),
     getCommentsForProject(id),
-    recordView(id),
   ]);
   const ranked = [...allProjects].sort(
     (a, b) => engagementScore(b) - engagementScore(a),

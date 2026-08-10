@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { and, eq } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { db } from "@/db";
@@ -54,11 +55,15 @@ export async function addComment(
 }
 
 // Clicks are anonymous-friendly — don't gate "visit project" behind login.
+// Deferred with `after()` so the action returns before the write lands; request
+// APIs are allowed inside the callback here because this is a Server Function.
 export async function logClick(projectId: string) {
-  const { key, userId } = await actorKey();
-  await db
-    .insert(click)
-    .values({ id: randomUUID(), projectId, userId, actorKey: key })
-    .onConflictDoNothing();
-  revalidatePath(`/project/${projectId}`);
+  after(async () => {
+    const { key, userId } = await actorKey();
+    await db
+      .insert(click)
+      .values({ id: randomUUID(), projectId, userId, actorKey: key })
+      .onConflictDoNothing();
+    revalidatePath(`/project/${projectId}`);
+  });
 }

@@ -3,7 +3,7 @@ import { count, desc, eq } from "drizzle-orm";
 import type { PgTable } from "drizzle-orm/pg-core";
 import { db } from "@/db";
 import { click, comment, like, project, user, view } from "@/db/schema";
-import { actorKey } from "@/lib/actor";
+import type { Actor } from "@/lib/actor";
 import type { ProjectType } from "@/lib/departments";
 import { engagementScore, type Interactions } from "@/lib/gauge";
 
@@ -150,10 +150,11 @@ export async function getCommentsForProject(projectId: string): Promise<ProjectC
     .orderBy(desc(comment.createdAt));
 }
 
-export async function recordView(projectId: string) {
-  const { key, userId } = await actorKey();
+// Takes an already-resolved actor so the caller can defer this with `after()`
+// without touching request APIs inside the callback.
+export async function recordView(projectId: string, actor: Actor) {
   await db
     .insert(view)
-    .values({ id: randomUUID(), projectId, userId, actorKey: key })
+    .values({ id: randomUUID(), projectId, userId: actor.userId, actorKey: actor.key })
     .onConflictDoNothing();
 }
