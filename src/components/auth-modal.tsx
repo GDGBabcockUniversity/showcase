@@ -6,7 +6,7 @@ import { signIn, signUp } from "@/lib/auth-client";
 import { DEPARTMENTS, LEVELS } from "@/lib/departments";
 
 const inputClass =
-  "w-full rounded-xl border border-border bg-bg px-3 py-2 text-sm text-fg outline-none transition-colors placeholder:text-muted focus:border-blue/60";
+  "w-full rounded-xl border border-border bg-bg px-3.5 py-2.5 text-sm text-fg outline-none transition-colors placeholder:text-muted focus:border-blue/60";
 const labelClass = "block font-mono text-[10px] uppercase tracking-wider text-muted";
 const errClass = "mt-1 font-mono text-[11px] text-red";
 
@@ -74,19 +74,29 @@ export function AuthModal() {
     router.refresh();
   }
 
+  // max-h + scroll matter in sign-up mode, which is tall enough to overflow a
+  // short laptop viewport now that the dialog is larger.
   return (
     <dialog
       ref={dialogRef}
       onClose={reset}
       onClick={(e) => {
-        if (e.target === e.currentTarget) dialogRef.current?.close();
+        // A backdrop click reports the dialog as its target, and so does a click
+        // on the dialog's own padding — so compare against the box instead.
+        const r = e.currentTarget.getBoundingClientRect();
+        const outside =
+          e.clientX < r.left ||
+          e.clientX > r.right ||
+          e.clientY < r.top ||
+          e.clientY > r.bottom;
+        if (outside) e.currentTarget.close();
       }}
-      className="m-auto w-[calc(100%-2rem)] max-w-sm rounded-2xl border border-border bg-surface p-6 text-fg backdrop:bg-black/50 backdrop:backdrop-blur-sm"
+      className="m-auto max-h-[90dvh] w-[calc(100%-2rem)] max-w-lg overflow-y-auto rounded-2xl border border-border bg-surface p-8 text-fg backdrop:bg-black/50 backdrop:backdrop-blur-sm"
     >
       <div className="flex items-start justify-between gap-4">
         <div>
           <p className="eyebrow">{mode === "signin" ? "Welcome back" : "Join the board"}</p>
-          <h2 className="mt-2 font-display text-2xl font-bold tracking-tight">
+          <h2 className="mt-2 font-display text-3xl font-bold tracking-tight">
             {mode === "signin" ? "Sign in" : "Create an account"}
           </h2>
         </div>
@@ -100,7 +110,7 @@ export function AuthModal() {
         </button>
       </div>
 
-      <form onSubmit={onSubmit} className="mt-6 flex flex-col gap-4">
+      <form onSubmit={onSubmit} className="mt-7 flex flex-col gap-4">
         {mode === "signup" && (
           <>
             <div>
@@ -172,7 +182,7 @@ export function AuthModal() {
         <button
           type="submit"
           disabled={pending}
-          className="mt-1 inline-flex w-full items-center justify-center rounded-full bg-blue px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+          className="mt-1 inline-flex w-full items-center justify-center rounded-full bg-blue px-4 py-2.5 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
         >
           {mode === "signin" ? "Sign in" : "Sign up"}
         </button>
@@ -187,7 +197,7 @@ export function AuthModal() {
       <button
         type="button"
         onClick={() => signIn.social({ provider: "google", callbackURL: redirectTo })}
-        className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full border border-border px-4 py-2 text-sm font-medium text-fg transition-colors hover:border-blue/60"
+        className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full border border-border px-4 py-2.5 text-sm font-medium text-fg transition-colors hover:border-blue/60"
       >
         Continue with Google
       </button>
