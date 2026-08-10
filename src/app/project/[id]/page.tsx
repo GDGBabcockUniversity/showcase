@@ -139,13 +139,13 @@ export default async function ProjectPage({
             <p className="font-mono text-[10px] uppercase tracking-wider text-muted">
               {p.department} · {TYPE_LABEL[p.type]}
             </p>
-            <h1 className="mt-3 font-display text-[2.75rem] font-bold leading-[0.95] tracking-tight sm:text-6xl">
+            <h1 className="mt-3 break-words font-display text-[2.75rem] font-bold leading-[0.95] tracking-tight sm:text-6xl">
               {p.title}
             </h1>
-            <p className="mt-5 max-w-2xl font-display text-2xl italic leading-tight tracking-tight text-muted sm:text-3xl">
+            <p className="mt-5 max-w-2xl break-words font-display text-2xl italic leading-tight tracking-tight text-muted sm:text-3xl">
               {p.summary}
             </p>
-            <p className="mt-6 font-mono text-xs uppercase tracking-wider text-muted">
+            <p className="mt-6 break-words font-mono text-xs uppercase tracking-wider text-muted">
               Shipped by <span className="text-fg">{p.by}</span>
             </p>
           </div>
@@ -181,10 +181,10 @@ export default async function ProjectPage({
             {/* About */}
             <section className="mt-12">
               <p className="eyebrow">About the build</p>
-              <p className="mt-4 max-w-2xl text-base leading-relaxed text-fg">
+              <p className="mt-4 max-w-2xl break-words text-base leading-relaxed text-fg">
                 {p.summary}
               </p>
-              <p className="mt-4 max-w-2xl text-sm leading-relaxed text-muted">
+              <p className="mt-4 max-w-2xl break-words text-sm leading-relaxed text-muted">
                 Filed under {p.department.toLowerCase()} as a{" "}
                 {TYPE_LABEL[p.type].toLowerCase()} project. Every submission is
                 read by a reviewer before it lands on the board, so being here
@@ -274,12 +274,12 @@ export default async function ProjectPage({
                   {comments.map((c) => (
                     <li key={c.id} className="border-b border-border pb-5 last:border-0">
                       <div className="flex items-baseline justify-between gap-3">
-                        <p className="text-sm font-medium">{c.by}</p>
+                        <p className="min-w-0 break-words text-sm font-medium">{c.by}</p>
                         <p className="font-mono text-[10px] uppercase tracking-wider text-muted">
                           {c.createdAt.toLocaleDateString()}
                         </p>
                       </div>
-                      <p className="mt-1.5 text-sm leading-relaxed text-muted">{c.body}</p>
+                      <p className="mt-1.5 break-words text-sm leading-relaxed text-muted">{c.body}</p>
                     </li>
                   ))}
                 </ol>
@@ -379,7 +379,7 @@ export default async function ProjectPage({
                     <dt className="font-mono text-[10px] uppercase tracking-wider text-muted">
                       {row.label}
                     </dt>
-                    <dd className="text-right text-sm font-medium">{row.value}</dd>
+                    <dd className="min-w-0 break-words text-right text-sm font-medium">{row.value}</dd>
                   </div>
                 ))}
               </div>

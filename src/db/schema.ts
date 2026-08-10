@@ -1,4 +1,5 @@
-import { pgTable, text, timestamp, boolean, jsonb, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, boolean, jsonb, uniqueIndex } from "drizzle-orm/pg-core";
+import { SUMMARY_MAX, TITLE_MAX } from "@/lib/limits";
 
 // better-auth core tables — field names match @better-auth/core's schema
 // (user/session/account/verification), required by the drizzle adapter.
@@ -55,8 +56,10 @@ export const verification = pgTable("verification", {
 export const project = pgTable("project", {
   id: text("id").primaryKey(),
   userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
-  title: text("title").notNull(),
-  summary: text("summary").notNull(),
+  // lengths mirror src/lib/limits.ts — the last line of defence if a write
+  // ever reaches the table without going through the submit form
+  title: varchar("title", { length: TITLE_MAX }).notNull(),
+  summary: varchar("summary", { length: SUMMARY_MAX }).notNull(),
   department: text("department").notNull(),
   type: text("type").notNull(),
   url: text("url").notNull(),

@@ -3,6 +3,13 @@
 import { useActionState, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { DEPARTMENTS, PROJECT_TYPES, TYPE_LABEL } from "@/lib/departments";
 import { CollaboratorPicker } from "@/components/collaborator-picker";
+import {
+  MAX_COLLABORATORS,
+  SUMMARY_MAX,
+  SUMMARY_MIN,
+  TITLE_MAX,
+  TITLE_MIN,
+} from "@/lib/limits";
 
 export type SubmitState = {
   ok: boolean;
@@ -31,8 +38,6 @@ export type SubmitState = {
 type ErrorField = NonNullable<SubmitState["errors"]> extends Partial<Record<infer K, string>>
   ? K
   : never;
-
-const MAX_COLLABORATORS = 5;
 
 const initial: SubmitState = { ok: false };
 
@@ -172,6 +177,16 @@ const STEPS = [
   },
 ];
 
+function CharCount({ value, max }: { value: string; max: number }) {
+  const used = value.length;
+  const tone = used >= max ? "text-red" : used > max * 0.9 ? "text-yellow" : "text-muted";
+  return (
+    <span className={`font-mono text-[10px] tabular-nums ${tone}`}>
+      {used}/{max}
+    </span>
+  );
+}
+
 function StepIcon({ index, state }: { index: number; state: "done" | "active" | "todo" | "error" }) {
   const tone =
     state === "error"
@@ -236,8 +251,8 @@ export function SubmitForm({
     if (!fd) return {};
     const cover = fd.get("cover");
     const next = {
-      title: title.trim().length >= 2,
-      summary: summary.trim().length >= 20,
+      title: title.trim().length >= TITLE_MIN,
+      summary: summary.trim().length >= SUMMARY_MIN,
       department: !!department,
       type: !!type,
       cover: cover instanceof File && cover.size > 0,
@@ -371,11 +386,14 @@ export function SubmitForm({
         <div className="mt-8 grid gap-5 lg:grid-cols-2">
           {/* Main info */}
           <div className={current.id === "main" ? "" : "hidden"}>
-            <label htmlFor="title" className={labelClass}>Title</label>
+            <span className="flex items-baseline justify-between gap-2">
+              <label htmlFor="title" className={labelClass}>Title</label>
+              <CharCount value={title} max={TITLE_MAX} />
+            </span>
             <input
               id="title"
               name="title"
-              maxLength={80}
+              maxLength={TITLE_MAX}
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="CampusCart"
@@ -402,11 +420,14 @@ export function SubmitForm({
           </div>
 
           <div className={current.id === "main" ? "lg:col-span-2" : "hidden"}>
-            <label htmlFor="summary" className={labelClass}>Summary</label>
+            <span className="flex items-baseline justify-between gap-2">
+              <label htmlFor="summary" className={labelClass}>Summary</label>
+              <CharCount value={summary} max={SUMMARY_MAX} />
+            </span>
             <textarea
               id="summary"
               name="summary"
-              maxLength={240}
+              maxLength={SUMMARY_MAX}
               rows={3}
               value={summary}
               onChange={(e) => setSummary(e.target.value)}
@@ -486,8 +507,8 @@ export function SubmitForm({
           {/* Launch checklist */}
           <div className={current.id === "review" ? "lg:col-span-2" : "hidden"}>
             <ul className="rounded-2xl border border-border bg-surface px-5 py-2">
-              <ChecklistRow label="Title" ok={!!filled.title} hint="At least 2 characters" />
-              <ChecklistRow label="Summary" ok={!!filled.summary} hint="At least 20 characters" />
+              <ChecklistRow label="Title" ok={!!filled.title} hint={`At least ${TITLE_MIN} characters`} />
+              <ChecklistRow label="Summary" ok={!!filled.summary} hint={`At least ${SUMMARY_MIN} characters`} />
               <ChecklistRow label="Department" ok={!!filled.department} hint="Pick one" />
               <ChecklistRow label="Type" ok={!!filled.type} hint="Pick one" />
               <ChecklistRow label="Cover image" ok={!!filled.cover} hint="Required" />

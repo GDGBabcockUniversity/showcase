@@ -10,6 +10,14 @@ import { auth } from "@/lib/auth";
 import { inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { project, user } from "@/db/schema";
+import {
+  MAX_COLLABORATORS,
+  MAX_EXTRA_MEDIA,
+  SUMMARY_MAX,
+  SUMMARY_MIN,
+  TITLE_MAX,
+  TITLE_MIN,
+} from "@/lib/limits";
 import { SubmitForm, type SubmitState } from "./submit-form";
 
 export const metadata: Metadata = {
@@ -19,8 +27,6 @@ export const metadata: Metadata = {
 
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 const OK_IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
-const MAX_EXTRA_MEDIA = 4;
-const MAX_COLLABORATORS = 5;
 
 async function submitProject(_: SubmitState, formData: FormData): Promise<SubmitState> {
   "use server";
@@ -45,10 +51,11 @@ async function submitProject(_: SubmitState, formData: FormData): Promise<Submit
   const media = formData.getAll("media").filter((f): f is File => f instanceof File && f.size > 0);
 
   const errors: SubmitState["errors"] = {};
-  if (title.length < 2) errors.title = "Give it a real name.";
-  if (title.length > 80) errors.title = "Under 80 characters.";
-  if (summary.length < 20) errors.summary = "One full sentence, at least 20 characters.";
-  if (summary.length > 240) errors.summary = "Under 240 characters.";
+  if (title.length < TITLE_MIN) errors.title = "Give it a real name.";
+  if (title.length > TITLE_MAX) errors.title = `Under ${TITLE_MAX} characters.`;
+  if (summary.length < SUMMARY_MIN)
+    errors.summary = `One full sentence, at least ${SUMMARY_MIN} characters.`;
+  if (summary.length > SUMMARY_MAX) errors.summary = `Under ${SUMMARY_MAX} characters.`;
   if (!(DEPARTMENTS as readonly string[]).includes(department)) errors.department = "Pick a department.";
   if (!(PROJECT_TYPES as readonly string[]).includes(type)) errors.type = "Pick a type.";
   if (url) {
