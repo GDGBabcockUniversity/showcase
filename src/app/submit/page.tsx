@@ -124,19 +124,10 @@ export default function SubmitPage() {
     <>
       <Nav />
       <main className="mx-auto w-full max-w-7xl px-5 py-10 sm:py-14">
-        <section className="border-b border-border pb-8">
-          <p className="eyebrow flex items-center gap-3">
-            <Dots />
-            Submit a project
-          </p>
-          <h1 className="mt-4 font-display text-4xl font-bold leading-[0.95] tracking-tight sm:text-5xl">
-            Put it on the board.
-          </h1>
-          <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted sm:text-base">
-            One sentence, one link, one reviewer. Being published here means someone
-            actually looked at what you shipped.
-          </p>
-        </section>
+        <p className="eyebrow flex items-center gap-3 border-b border-border pb-6">
+          <Dots />
+          Submit a project
+        </p>
 
         <div className="mt-8">
           <SubmitForm action={submitProject} />
