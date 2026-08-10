@@ -159,7 +159,7 @@ export function SubmitForm({
   }
 
   return (
-    <form action={formAction} className="flex flex-col gap-5">
+    <form action={formAction} className="grid gap-5 lg:grid-cols-2">
       <div>
         <label htmlFor="title" className={labelClass}>Title</label>
         <input
@@ -174,6 +174,23 @@ export function SubmitForm({
       </div>
 
       <div>
+        <label htmlFor="department" className={labelClass}>Department</label>
+        <select
+          id="department"
+          name="department"
+          required
+          defaultValue=""
+          className={`mt-2 ${inputClass}`}
+        >
+          <option value="" disabled>Pick one</option>
+          {DEPARTMENTS.map((d) => (
+            <option key={d} value={d}>{d}</option>
+          ))}
+        </select>
+        {state.errors?.department && <p className={errClass}>{state.errors.department}</p>}
+      </div>
+
+      <div className="lg:col-span-2">
         <label htmlFor="summary" className={labelClass}>Summary</label>
         <textarea
           id="summary"
@@ -200,23 +217,6 @@ export function SubmitForm({
       </div>
 
       <div>
-        <label htmlFor="department" className={labelClass}>Department</label>
-        <select
-          id="department"
-          name="department"
-          required
-          defaultValue=""
-          className={`mt-2 ${inputClass}`}
-        >
-          <option value="" disabled>Pick one</option>
-          {DEPARTMENTS.map((d) => (
-            <option key={d} value={d}>{d}</option>
-          ))}
-        </select>
-        {state.errors?.department && <p className={errClass}>{state.errors.department}</p>}
-      </div>
-
-      <div>
         <span id="collaborators-label" className={labelClass}>
           Collaborators <span className="text-muted/70">(optional)</span>
         </span>
@@ -230,23 +230,21 @@ export function SubmitForm({
         )}
       </div>
 
-      <div className="grid gap-5 sm:grid-cols-2">
-        <div>
-          <span className={labelClass}>Cover image</span>
-          <FileDrop id="cover" name="cover" required hint="PNG / JPG / WEBP · ≤ 4 MB" />
-          {state.errors?.cover && <p className={errClass}>{state.errors.cover}</p>}
-        </div>
-
-        <div>
-          <span className={labelClass}>
-            More media <span className="text-muted/70">(optional)</span>
-          </span>
-          <FileDrop id="media" name="media" multiple hint="Up to 4 · 4 MB each" />
-          {state.errors?.media && <p className={errClass}>{state.errors.media}</p>}
-        </div>
+      <div>
+        <span className={labelClass}>Cover image</span>
+        <FileDrop id="cover" name="cover" required hint="PNG / JPG / WEBP · ≤ 4 MB" />
+        {state.errors?.cover && <p className={errClass}>{state.errors.cover}</p>}
       </div>
 
-      <fieldset>
+      <div>
+        <span className={labelClass}>
+          More media <span className="text-muted/70">(optional)</span>
+        </span>
+        <FileDrop id="media" name="media" multiple hint="Up to 4 · 4 MB each" />
+        {state.errors?.media && <p className={errClass}>{state.errors.media}</p>}
+      </div>
+
+      <fieldset className="lg:col-span-2">
         <legend className={labelClass}>Type</legend>
         <div className="mt-2 flex flex-wrap gap-2">
           {PROJECT_TYPES.map((t) => (
@@ -263,12 +261,12 @@ export function SubmitForm({
       </fieldset>
 
       {state.message && !state.ok && (
-        <p aria-live="polite" className="font-mono text-xs text-red">
+        <p aria-live="polite" className="font-mono text-xs text-red lg:col-span-2">
           {state.message}
         </p>
       )}
 
-      <div className="flex items-center justify-between border-t border-border pt-5">
+      <div className="flex items-center justify-between border-t border-border pt-5 lg:col-span-2">
         <p className="font-mono text-[10px] uppercase tracking-wider text-muted">
           Reviewed before it goes live.
         </p>
