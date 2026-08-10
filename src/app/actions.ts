@@ -5,10 +5,10 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { after } from "next/server";
-import { and, eq } from "drizzle-orm";
+import { and, eq, ilike, ne } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { db } from "@/db";
-import { click, comment, like } from "@/db/schema";
+import { click, comment, like, user } from "@/db/schema";
 import { actorKey } from "@/lib/actor";
 
 async function requireSession() {
@@ -66,4 +66,30 @@ export async function logClick(projectId: string) {
       .onConflictDoNothing();
     revalidatePath(`/project/${projectId}`);
   });
+}
+
+export type CollaboratorOption = {
+  id: string;
+  name: string;
+  department: string | null;
+};
+
+// Typeahead for the submit form's collaborator picker. Signed-in only, since
+// this is effectively a directory lookup, and it deliberately returns no email.
+export async function searchUsers(query: string): Promise<CollaboratorOption[]> {
+  const session = await requireSession();
+  const q = query.trim();
+  if (q.length < 2) return [];
+
+  return db
+    .select({ id: user.id, name: user.name, department: user.department })
+    .from(user)
+    .where(
+      and(
+        ilike(user.name, `%${q}%`),
+        // you're already on your own project
+        ne(user.id, session.user.id),
+      ),
+    )
+    .limit(8);
 }

@@ -2,6 +2,7 @@
 
 import { useActionState, useEffect, useRef, useState, type DragEvent } from "react";
 import { DEPARTMENTS, PROJECT_TYPES, TYPE_LABEL } from "@/lib/departments";
+import { CollaboratorPicker } from "@/components/collaborator-picker";
 
 export type SubmitState = {
   ok: boolean;
@@ -26,6 +27,8 @@ export type SubmitState = {
     media: number;
   };
 };
+
+const MAX_COLLABORATORS = 5;
 
 const initial: SubmitState = { ok: false };
 
@@ -214,19 +217,14 @@ export function SubmitForm({
       </div>
 
       <div>
-        <label htmlFor="collaborators" className={labelClass}>
+        <span id="collaborators-label" className={labelClass}>
           Collaborators <span className="text-muted/70">(optional)</span>
-        </label>
-        <input
-          id="collaborators"
+        </span>
+        <CollaboratorPicker
           name="collaborators"
-          maxLength={240}
-          placeholder="Samuel Ojo, Ada Nwankwo"
-          className={`mt-2 ${inputClass}`}
+          max={MAX_COLLABORATORS}
+          labelledBy="collaborators-label"
         />
-        <p className="mt-1 font-mono text-[10px] uppercase tracking-wider text-muted">
-          Comma-separated · up to 5
-        </p>
         {state.errors?.collaborators && (
           <p className={errClass}>{state.errors.collaborators}</p>
         )}

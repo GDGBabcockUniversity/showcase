@@ -7,8 +7,9 @@ import { Footer } from "@/components/footer";
 import { Dots } from "@/components/dots";
 import { DEPARTMENTS, PROJECT_TYPES } from "@/lib/departments";
 import { auth } from "@/lib/auth";
+import { inArray } from "drizzle-orm";
 import { db } from "@/db";
-import { project } from "@/db/schema";
+import { project, user } from "@/db/schema";
 import { SubmitForm, type SubmitState } from "./submit-form";
 
 export const metadata: Metadata = {
@@ -34,10 +35,12 @@ async function submitProject(_: SubmitState, formData: FormData): Promise<Submit
   const department = String(formData.get("department") ?? "");
   const type = String(formData.get("type") ?? "");
   const url = String(formData.get("url") ?? "").trim();
-  const collaborators = String(formData.get("collaborators") ?? "")
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
+  // The picker submits user ids, one hidden input each.
+  const collaboratorIds = [
+    ...new Set(
+      formData.getAll("collaborators").map((v) => String(v)).filter(Boolean),
+    ),
+  ].filter((id) => id !== session.user.id);
   const cover = formData.get("cover");
   const media = formData.getAll("media").filter((f): f is File => f instanceof File && f.size > 0);
 
@@ -57,10 +60,19 @@ async function submitProject(_: SubmitState, formData: FormData): Promise<Submit
     }
   }
 
-  if (collaborators.length > MAX_COLLABORATORS) {
+  // Never trust ids straight off the form — resolve them against real accounts.
+  // The names that come back are what the receipt shows.
+  let collaborators: { id: string; name: string }[] = [];
+  if (collaboratorIds.length > MAX_COLLABORATORS) {
     errors.collaborators = `Up to ${MAX_COLLABORATORS} collaborators.`;
-  } else if (collaborators.some((c) => c.length > 80)) {
-    errors.collaborators = "Each name under 80 characters.";
+  } else if (collaboratorIds.length > 0) {
+    collaborators = await db
+      .select({ id: user.id, name: user.name })
+      .from(user)
+      .where(inArray(user.id, collaboratorIds));
+    if (collaborators.length !== collaboratorIds.length) {
+      errors.collaborators = "One of those accounts no longer exists.";
+    }
   }
 
   if (!(cover instanceof File) || cover.size === 0) {
@@ -93,7 +105,7 @@ async function submitProject(_: SubmitState, formData: FormData): Promise<Submit
     department,
     type,
     url: url || "",
-    collaborators,
+    collaborators: collaborators.map((c) => c.id),
   });
 
   return {
@@ -101,7 +113,7 @@ async function submitProject(_: SubmitState, formData: FormData): Promise<Submit
     receipt: {
       title,
       department,
-      collaborators,
+      collaborators: collaborators.map((c) => c.name),
       media: 1 + media.length,
     },
   };
