@@ -29,6 +29,14 @@ export default function RootLayout({
       className={`${bricolage.variable} ${inter.variable} ${jetbrains.variable} h-full`}
     >
       <head>
+        {/*
+          Raw <script> on purpose. React warns in dev that this won't run on
+          client renders — fine, it only needs to run once, before first paint.
+          next/script's beforeInteractive is not a substitute: for inline
+          app-dir scripts Next queues them into self.__next_s and runs them once
+          the client runtime boots, i.e. after paint, which brings back the
+          theme flash this exists to prevent.
+        */}
         <script
           dangerouslySetInnerHTML={{
             __html: `try{if(localStorage.getItem('theme')==='light')document.documentElement.classList.add('light')}catch{}`,
