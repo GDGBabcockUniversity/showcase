@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { cookies } from "next/headers";
+import { THEME_COOKIE, themeFromCookie } from "@/lib/theme";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { AuthStatus } from "@/components/auth-status";
 
@@ -9,7 +11,9 @@ const LINKS = [
   { href: "/submit", label: "Submit" },
 ];
 
-export function Nav() {
+export async function Nav() {
+  const theme = themeFromCookie((await cookies()).get(THEME_COOKIE)?.value);
+
   return (
     <header className="sticky top-0 z-30 border-b border-border bg-bg/85 backdrop-blur-xl">
       <nav className="mx-auto flex h-[4.5rem] max-w-7xl items-center justify-between gap-4 px-5">
@@ -55,7 +59,7 @@ export function Nav() {
           <span className="hidden items-center gap-2 font-mono text-[10px] uppercase tracking-wider text-green lg:flex">
             <span className="h-1.5 w-1.5 rounded-full bg-green" /> live
           </span>
-          <ThemeToggle />
+          <ThemeToggle initialLight={theme === "light"} />
           <AuthStatus />
         </div>
       </nav>

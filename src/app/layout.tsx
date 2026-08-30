@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import { Bricolage_Grotesque, Inter, JetBrains_Mono } from "next/font/google";
 import { AuthModal } from "@/components/auth-modal";
+import { cookies } from "next/headers";
+import { THEME_COOKIE, themeFromCookie } from "@/lib/theme";
 import "./globals.css";
 
 const bricolage = Bricolage_Grotesque({
@@ -20,29 +22,20 @@ export const metadata: Metadata = {
     "Where GDG on Campus Babcock students publish what they build. Every project is reviewed before it goes live, so being published means something.",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
+  // Resolved on the server, so the right theme is in the very first byte of
+  // HTML. No bootstrap script, and nothing to flash.
+  const theme = themeFromCookie((await cookies()).get(THEME_COOKIE)?.value);
+
   return (
     <html
       lang="en"
-      className={`${bricolage.variable} ${inter.variable} ${jetbrains.variable} h-full`}
+      className={`${bricolage.variable} ${inter.variable} ${jetbrains.variable} h-full${
+        theme === "light" ? " light" : ""
+      }`}
     >
-      <head>
-        {/*
-          Raw <script> on purpose. React warns in dev that this won't run on
-          client renders — fine, it only needs to run once, before first paint.
-          next/script's beforeInteractive is not a substitute: for inline
-          app-dir scripts Next queues them into self.__next_s and runs them once
-          the client runtime boots, i.e. after paint, which brings back the
-          theme flash this exists to prevent.
-        */}
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `try{if(localStorage.getItem('theme')==='light')document.documentElement.classList.add('light')}catch{}`,
-          }}
-        />
-      </head>
       <body className="min-h-full flex flex-col">
         {children}
         <Suspense fallback={null}>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
+import { THEME_COOKIE } from "@/lib/theme";
 
 const THEME_CHANGE_EVENT = "theme-change";
 
@@ -13,9 +14,7 @@ function getSnapshot() {
   return document.documentElement.classList.contains("light");
 }
 
-function getServerSnapshot() {
-  return false;
-}
+
 
 function SunIcon() {
   return (
@@ -42,19 +41,16 @@ function MoonIcon() {
   );
 }
 
-export function ThemeToggle() {
-  const light = useSyncExternalStore(
-    subscribe,
-    getSnapshot,
-    getServerSnapshot,
-  );
+export function ThemeToggle({ initialLight }: { initialLight: boolean }) {
+  // The server already decided the theme from the cookie, so the server
+  // snapshot has to agree with it or hydration mismatches on the icon.
+  const light = useSyncExternalStore(subscribe, getSnapshot, () => initialLight);
 
   function toggle() {
     const next = document.documentElement.classList.toggle("light");
     window.dispatchEvent(new Event(THEME_CHANGE_EVENT));
-    try {
-      localStorage.setItem("theme", next ? "light" : "dark");
-    } catch {}
+    // A cookie, not localStorage, so the server can read it on the next request.
+    document.cookie = `${THEME_COOKIE}=${next ? "light" : "dark"}; path=/; max-age=31536000; samesite=lax`;
   }
 
   return (
