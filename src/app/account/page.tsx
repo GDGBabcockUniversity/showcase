@@ -14,6 +14,7 @@ import {
   type Project,
 } from "@/lib/projects";
 import { engagementScore } from "@/lib/gauge";
+import { ProfileForm } from "@/components/profile-form";
 
 export const metadata: Metadata = {
   title: "Account — GDG Babcock Showcase",
@@ -114,6 +115,17 @@ export default async function AccountPage() {
               </p>
             </div>
           </div>
+        </section>
+
+        {/* Editable details */}
+        <section className="mt-8">
+          <p className="eyebrow">Your details</p>
+          <ProfileForm
+            name={user.name}
+            email={user.email}
+            department={user.department ?? null}
+            level={user.level ?? null}
+          />
         </section>
 
         {/* Signal earned across their own projects */}

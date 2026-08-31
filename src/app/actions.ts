@@ -10,6 +10,7 @@ import { auth } from "@/lib/auth";
 import { db } from "@/db";
 import { click, comment, like, user } from "@/db/schema";
 import { actorKey } from "@/lib/actor";
+import { DEPARTMENTS, LEVELS } from "@/lib/departments";
 
 async function requireSession() {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -92,4 +93,36 @@ export async function searchUsers(query: string): Promise<CollaboratorOption[]> 
       ),
     )
     .limit(8);
+}
+
+export type ProfileState = { ok: boolean; error?: string };
+
+// Profile edits go through better-auth rather than a direct db write, so the
+// session it hands back afterwards reflects the new values.
+export async function updateProfile(
+  _prev: ProfileState,
+  formData: FormData,
+): Promise<ProfileState> {
+  await requireSession();
+
+  const name = String(formData.get("name") ?? "").trim();
+  const department = String(formData.get("department") ?? "");
+  const level = String(formData.get("level") ?? "");
+
+  if (name.length < 2) return { ok: false, error: "Name is too short." };
+  if (name.length > 80) return { ok: false, error: "Name must be under 80 characters." };
+  if (department && !(DEPARTMENTS as readonly string[]).includes(department)) {
+    return { ok: false, error: "Pick a department from the list." };
+  }
+  if (level && !(LEVELS as readonly string[]).includes(level)) {
+    return { ok: false, error: "Pick a level from the list." };
+  }
+
+  await auth.api.updateUser({
+    headers: await headers(),
+    body: { name, department: department || null, level: level || null },
+  });
+
+  revalidatePath("/account");
+  return { ok: true };
 }
