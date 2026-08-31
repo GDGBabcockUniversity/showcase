@@ -4,16 +4,17 @@ import { Nav } from "@/components/nav";
 import { Footer } from "@/components/footer";
 import { Dots } from "@/components/dots";
 import { ProductRow } from "@/components/product-row";
-import { getAllProjects, getLikedProjectIds } from "@/lib/projects";
+import { getAllProjects, getLikedProjectIds, getTopMakers } from "@/lib/projects";
 import { auth } from "@/lib/auth";
 import { PROJECT_TYPES, TYPE_LABEL } from "@/lib/departments";
 import { engagementScore } from "@/lib/gauge";
 
 export default async function Home() {
   const session = await auth.api.getSession({ headers: await headers() });
-  const [projects, likedIds] = await Promise.all([
+  const [projects, likedIds, makers] = await Promise.all([
     getAllProjects(),
     session ? getLikedProjectIds(session.user.id) : Promise.resolve(new Set<string>()),
+    getTopMakers(),
   ]);
   const ranked = [...projects].sort(
     (a, b) => engagementScore(b) - engagementScore(a),
@@ -21,21 +22,6 @@ export default async function Home() {
   const today = ranked.slice(0, 5);
   const thisWeek = ranked.slice(5, 8);
 
-  // Top makers: aggregate signal per person, ordered.
-  const makers = Object.entries(
-    projects.reduce<Record<string, { count: number; signal: number; dept: string }>>(
-      (acc, p) => {
-        const entry = acc[p.by] ?? { count: 0, signal: 0, dept: p.department };
-        entry.count += 1;
-        entry.signal += engagementScore(p);
-        acc[p.by] = entry;
-        return acc;
-      },
-      {},
-    ),
-  )
-    .sort((a, b) => b[1].signal - a[1].signal)
-    .slice(0, 5);
 
   return (
     <>
@@ -141,9 +127,14 @@ export default async function Home() {
                   this month
                 </span>
               </div>
+              {makers.length === 0 && (
+                <p className="mt-4 text-sm text-muted">
+                  Nobody has shipped yet this month.
+                </p>
+              )}
               <ol className="mt-4 space-y-3">
-                {makers.map(([name, data], i) => (
-                  <li key={name} className="flex items-center gap-3">
+                {makers.map((maker, i) => (
+                  <li key={maker.userId} className="flex items-center gap-3">
                     <span className="w-4 shrink-0 text-center font-mono text-xs text-muted tabular-nums">
                       {i + 1}
                     </span>
@@ -155,18 +146,19 @@ export default async function Home() {
                       }}
                       aria-hidden
                     >
-                      {name[0]}
+                      {maker.name[0]}
                     </span>
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm font-medium">
-                        {name}
+                        {maker.name}
                       </span>
                       <span className="block truncate font-mono text-[11px] text-muted">
-                        {data.count} project{data.count > 1 ? "s" : ""} · {data.dept}
+                        {maker.projects} project{maker.projects > 1 ? "s" : ""}
+                        {maker.department ? ` · ${maker.department}` : ""}
                       </span>
                     </span>
                     <span className="font-mono text-xs text-blue tabular-nums">
-                      {data.signal.toFixed(0)}
+                      {maker.signal.toFixed(0)}
                     </span>
                   </li>
                 ))}

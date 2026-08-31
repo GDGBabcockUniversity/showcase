@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { count, desc, eq } from "drizzle-orm";
+import { count, desc, eq, gte } from "drizzle-orm";
 import type { PgTable } from "drizzle-orm/pg-core";
 import { db } from "@/db";
 import { click, comment, like, project, user, view } from "@/db/schema";
@@ -129,6 +129,67 @@ export async function getLikedProjects(userId: string): Promise<Project[]> {
     .where(eq(like.userId, userId))
     .orderBy(desc(like.createdAt));
   return attachCounts(rows);
+}
+
+export type Maker = {
+  userId: string;
+  name: string;
+  department: string | null;
+  projects: number;
+  signal: number;
+};
+
+// Signal per maker for projects filed since the 1st of the current month, so
+// the "this month" label on the home page is actually true. Keyed by user id
+// rather than display name, and the department is the maker's own rather than
+// whatever department their project was filed under.
+export async function getTopMakers(limit = 5): Promise<Maker[]> {
+  const now = new Date();
+  const since = new Date(now.getFullYear(), now.getMonth(), 1);
+
+  const rows = await db
+    .select({
+      projectId: project.id,
+      userId: project.userId,
+      name: user.name,
+      department: user.department,
+    })
+    .from(project)
+    .innerJoin(user, eq(project.userId, user.id))
+    .where(gte(project.createdAt, since));
+
+  if (rows.length === 0) return [];
+
+  const [views, clicks, likes, comments] = await Promise.all([
+    countsByProject(view),
+    countsByProject(click),
+    countsByProject(like),
+    countsByProject(comment),
+  ]);
+
+  const byMaker = new Map<string, Maker>();
+  for (const r of rows) {
+    const signal = engagementScore({
+      views: views.get(r.projectId) ?? 0,
+      clicks: clicks.get(r.projectId) ?? 0,
+      likes: likes.get(r.projectId) ?? 0,
+      comments: comments.get(r.projectId) ?? 0,
+    });
+    const maker = byMaker.get(r.userId) ?? {
+      userId: r.userId,
+      name: r.name,
+      department: r.department,
+      projects: 0,
+      signal: 0,
+    };
+    maker.projects += 1;
+    maker.signal += signal;
+    byMaker.set(r.userId, maker);
+  }
+
+  return [...byMaker.values()]
+    .sort((a, b) => b.signal - a.signal)
+    .slice(0, limit);
 }
 
 export async function getLikedProjectIds(userId: string): Promise<Set<string>> {
