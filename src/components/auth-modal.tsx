@@ -26,10 +26,15 @@ export function AuthModal() {
   const [level, setLevel] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
-  const redirectTo = searchParams.get("redirect") || "/submit";
+  // Where to go after signing in. Only set when the proxy bounced the user
+  // here from a gated route (?redirect=); a plain sign-in from the nav leaves
+  // this null so they stay on the page they were already reading.
+  const redirectTo = useRef<string | null>(null);
 
   useEffect(() => {
     function open() {
+      // Opened straight from the nav, so there's nowhere to send them after.
+      redirectTo.current = null;
       dialogRef.current?.showModal();
     }
     window.addEventListener(OPEN_AUTH_MODAL_EVENT, open);
@@ -38,6 +43,8 @@ export function AuthModal() {
 
   useEffect(() => {
     if (searchParams.get("authModal")) {
+      // Read before router.replace strips the query below.
+      redirectTo.current = searchParams.get("redirect");
       dialogRef.current?.showModal();
       router.replace(pathname);
     }
@@ -70,7 +77,8 @@ export function AuthModal() {
     }
     dialogRef.current?.close();
     reset();
-    router.push(redirectTo);
+    if (redirectTo.current) router.push(redirectTo.current);
+    // Re-render server components so the new session is picked up.
     router.refresh();
   }
 
@@ -196,7 +204,12 @@ export function AuthModal() {
 
       <button
         type="button"
-        onClick={() => signIn.social({ provider: "google", callbackURL: redirectTo })}
+        onClick={() =>
+          signIn.social({
+            provider: "google",
+            callbackURL: redirectTo.current ?? pathname,
+          })
+        }
         className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full border border-border px-4 py-2.5 text-sm font-medium text-fg transition-colors hover:border-blue/60"
       >
         Continue with Google
