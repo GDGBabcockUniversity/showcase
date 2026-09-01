@@ -14,6 +14,7 @@
   "dependencies": {
     "@radix-ui/react-avatar": "^1.2.6",
     "@radix-ui/react-tabs": "^1.1.21",
+    "@uploadthing/react": "^7.3.3",
     "better-auth": "^1.6.25",
     "clsx": "^2.1.1",
     "drizzle-orm": "^0.45.2",
@@ -21,7 +22,8 @@
     "postgres": "^3.4.9",
     "react": "19.2.4",
     "react-dom": "19.2.4",
-    "tailwind-merge": "^3.6.0"
+    "tailwind-merge": "^3.6.0",
+    "uploadthing": "^7.7.4"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

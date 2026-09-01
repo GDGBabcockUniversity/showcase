@@ -25,8 +25,13 @@ export const metadata: Metadata = {
   description: "Put your project on the board. Every submission is reviewed.",
 };
 
-const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
-const OK_IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
+// Only accept URLs on UploadThing's own hosts, so a crafted form can't point
+// the cover at somewhere arbitrary.
+const UPLOAD_HOSTS = /^https:\/\/[a-z0-9-]+\.ufs\.sh\/|^https:\/\/utfs\.io\//;
+
+function isUploadUrl(value: string) {
+  return UPLOAD_HOSTS.test(value);
+}
 
 async function submitProject(_: SubmitState, formData: FormData): Promise<SubmitState> {
   "use server";
@@ -47,8 +52,9 @@ async function submitProject(_: SubmitState, formData: FormData): Promise<Submit
       formData.getAll("collaborators").map((v) => String(v)).filter(Boolean),
     ),
   ].filter((id) => id !== session.user.id);
-  const cover = formData.get("cover");
-  const media = formData.getAll("media").filter((f): f is File => f instanceof File && f.size > 0);
+  // UploadThing URLs, posted by the drop zones — the bytes never touch this action.
+  const cover = String(formData.get("cover") ?? "").trim();
+  const media = formData.getAll("media").map(String).filter(Boolean);
 
   const errors: SubmitState["errors"] = {};
   if (title.length < TITLE_MIN) errors.title = "Give it a real name.";
@@ -82,28 +88,24 @@ async function submitProject(_: SubmitState, formData: FormData): Promise<Submit
     }
   }
 
-  if (!(cover instanceof File) || cover.size === 0) {
+  // Size and MIME are enforced by the upload route; here we only check that
+  // what came back is a URL we actually issued.
+  if (!cover) {
     errors.cover = "Cover image is required.";
-  } else if (!OK_IMAGE_TYPES.has(cover.type)) {
-    errors.cover = "PNG, JPG, or WEBP only.";
-  } else if (cover.size > MAX_IMAGE_BYTES) {
-    errors.cover = "Cover is over 4 MB.";
+  } else if (!isUploadUrl(cover)) {
+    errors.cover = "That cover didn't upload properly — try again.";
   }
 
   if (media.length > MAX_EXTRA_MEDIA) {
     errors.media = `Up to ${MAX_EXTRA_MEDIA} extra images.`;
-  } else if (media.some((f) => !OK_IMAGE_TYPES.has(f.type))) {
-    errors.media = "PNG, JPG, or WEBP only.";
-  } else if (media.some((f) => f.size > MAX_IMAGE_BYTES)) {
-    errors.media = "One of the images is over 4 MB.";
+  } else if (media.some((u) => !isUploadUrl(u))) {
+    errors.media = "One of those images didn't upload properly — try again.";
   }
 
   if (Object.keys(errors).length > 0) {
     return { ok: false, errors, message: "Fix the highlighted fields." };
   }
 
-  // ponytail: cover/media files are validated then dropped — still need to wire them to
-  // object storage (S3 / R2 / Supabase Storage). Only the DB row lands for now.
   await db.insert(project).values({
     id: randomUUID(),
     userId: session.user.id,
@@ -113,6 +115,8 @@ async function submitProject(_: SubmitState, formData: FormData): Promise<Submit
     type,
     url: url || "",
     collaborators: collaborators.map((c) => c.id),
+    cover,
+    media,
   });
 
   return {

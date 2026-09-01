@@ -50,8 +50,8 @@ export default async function EditProjectPage({
           {owned.title}
         </h1>
         <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted">
-          Changes go live immediately. The cover and extra media can&apos;t be
-          changed yet — file storage still isn&apos;t wired up.
+          Changes go live immediately. The cover and extra media are set at
+          submission and can&apos;t be swapped here yet.
         </p>
 
         <div className="mt-8">

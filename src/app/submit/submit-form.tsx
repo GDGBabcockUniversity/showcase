@@ -1,8 +1,9 @@
 "use client";
 
-import { useActionState, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
+import { useActionState, useRef, useState, type DragEvent } from "react";
 import { DEPARTMENTS, PROJECT_TYPES, TYPE_LABEL } from "@/lib/departments";
 import { CollaboratorPicker } from "@/components/collaborator-picker";
+import { useUploadThing } from "@/lib/uploadthing";
 import {
   MAX_COLLABORATORS,
   SUMMARY_MAX,
@@ -49,99 +50,107 @@ const errClass = "mt-1 font-mono text-[11px] text-red";
 function FileDrop({
   id,
   name,
+  endpoint,
   multiple,
   accept = "image/png,image/jpeg,image/webp",
   hint,
 }: {
   id: string;
   name: string;
+  endpoint: "projectCover" | "projectMedia";
   multiple?: boolean;
   accept?: string;
   hint: string;
 }) {
-  const inputRef = useRef<HTMLInputElement>(null);
   const [over, setOver] = useState(false);
-  const [files, setFiles] = useState<File[]>([]);
+  const [urls, setUrls] = useState<string[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
-  function put(list: File[]) {
-    const dt = new DataTransfer();
-    list.forEach((f) => dt.items.add(f));
-    if (inputRef.current) inputRef.current.files = dt.files;
-  }
-
-  function commit(list: File[]) {
-    setFiles(list);
-    put(list);
-  }
-
-  // React clears uncontrolled inputs once a form action settles, which would
-  // otherwise drop the chosen file whenever the server returns a validation
-  // error. Files can't be controlled, so put them back after every render.
-  useEffect(() => {
-    const el = inputRef.current;
-    if (!el || files.length === 0) return;
-    if (el.files && el.files.length > 0) return;
-    put(files);
+  // Files go straight to UploadThing on pick; the form only ever carries the
+  // resulting URLs. That also sidesteps the 8mb server-action body limit.
+  const { startUpload, isUploading } = useUploadThing(endpoint, {
+    onClientUploadComplete: (res) => {
+      setUrls((prev) => [...prev, ...res.map((r) => r.ufsUrl)]);
+      setError(null);
+    },
+    onUploadError: (e) => setError(e.message),
   });
 
-  const previews = useMemo(
-    () => files.map((f) => ({ name: f.name, url: URL.createObjectURL(f) })),
-    [files],
-  );
-  useEffect(
-    () => () => previews.forEach((p) => URL.revokeObjectURL(p.url)),
-    [previews],
-  );
+  function take(list: File[]) {
+    const images = list.filter((f) => accept.split(",").some((a) => f.type === a.trim()));
+    if (images.length === 0) return;
+    setError(null);
+    void startUpload(multiple ? images : images.slice(0, 1));
+  }
 
   function onDrop(e: DragEvent<HTMLLabelElement>) {
     e.preventDefault();
     setOver(false);
-    const incoming = Array.from(e.dataTransfer.files).filter((f) =>
-      accept.split(",").some((a) => f.type === a.trim()),
-    );
-    if (incoming.length === 0) return;
-    commit(multiple ? incoming : incoming.slice(0, 1));
+    take(Array.from(e.dataTransfer.files));
   }
 
   return (
-    <label
-      htmlFor={id}
-      onDragOver={(e) => {
-        e.preventDefault();
-        setOver(true);
-      }}
-      onDragLeave={() => setOver(false)}
-      onDrop={onDrop}
-      className={`mt-2 flex cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border border-dashed px-3 py-6 text-center text-xs transition-colors ${
-        over ? "border-blue bg-blue/5 text-fg" : "border-border bg-bg text-muted hover:border-blue/60"
-      }`}
-    >
-      {previews.length > 0 ? (
-        <div className="flex flex-wrap justify-center gap-2">
-          {previews.map((p) => (
-            <img
-              key={p.url}
-              src={p.url}
-              alt={p.name}
-              className="h-20 w-20 rounded-lg border border-border object-cover"
-            />
-          ))}
-        </div>
-      ) : (
-        <span className="font-medium text-fg">Drop or click to upload</span>
+    <div className="mt-2">
+      {/* Rendered from state, so a failed submit — which resets uncontrolled
+          inputs — doesn't lose an upload that already succeeded. */}
+      {urls.map((u) => (
+        <input key={u} type="hidden" name={name} value={u} />
+      ))}
+
+      <label
+        htmlFor={id}
+        onDragOver={(e) => {
+          e.preventDefault();
+          setOver(true);
+        }}
+        onDragLeave={() => setOver(false)}
+        onDrop={onDrop}
+        className={`flex cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border border-dashed px-3 py-6 text-center text-xs transition-colors ${
+          over ? "border-blue bg-blue/5 text-fg" : "border-border bg-bg text-muted hover:border-blue/60"
+        }`}
+      >
+        {urls.length > 0 ? (
+          <div className="flex flex-wrap justify-center gap-2">
+            {urls.map((u) => (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                key={u}
+                src={u}
+                alt=""
+                className="h-20 w-20 rounded-lg border border-border object-cover"
+              />
+            ))}
+          </div>
+        ) : (
+          <span className="font-medium text-fg">
+            {isUploading ? "Uploading…" : "Drop or click to upload"}
+          </span>
+        )}
+        <span className="font-mono text-[10px] uppercase tracking-wider">
+          {isUploading ? "Uploading…" : hint}
+        </span>
+        <input
+          id={id}
+          type="file"
+          accept={accept}
+          multiple={multiple}
+          disabled={isUploading}
+          onChange={(e) => take(Array.from(e.target.files ?? []))}
+          className="sr-only"
+        />
+      </label>
+
+      {urls.length > 0 && (
+        <button
+          type="button"
+          onClick={() => setUrls([])}
+          className="mt-1 font-mono text-[10px] uppercase tracking-wider text-muted hover:text-red"
+        >
+          Clear
+        </button>
       )}
-      <span className="font-mono text-[10px] uppercase tracking-wider">{hint}</span>
-      <input
-        ref={inputRef}
-        id={id}
-        name={name}
-        type="file"
-        accept={accept}
-        multiple={multiple}
-        onChange={(e) => commit(Array.from(e.target.files ?? []))}
-        className="sr-only"
-      />
-    </label>
+      {error && <p className={errClass}>{error}</p>}
+    </div>
   );
 }
 
@@ -249,15 +258,14 @@ export function SubmitForm({
   function readFilled() {
     const fd = formRef.current ? new FormData(formRef.current) : null;
     if (!fd) return {};
-    const cover = fd.get("cover");
     const next = {
       title: title.trim().length >= TITLE_MIN,
       summary: summary.trim().length >= SUMMARY_MIN,
       department: !!department,
       type: !!type,
-      cover: cover instanceof File && cover.size > 0,
+      cover: !!String(fd.get("cover") ?? ""),
       collaborators: fd.getAll("collaborators").length > 0,
-      media: fd.getAll("media").filter((f) => f instanceof File && f.size > 0).length > 0,
+      media: fd.getAll("media").length > 0,
     };
     setFilled(next);
     return next;
@@ -477,7 +485,7 @@ export function SubmitForm({
           {/* Images and media */}
           <div className={current.id === "media" ? "" : "hidden"}>
             <span className={labelClass}>Cover image</span>
-            <FileDrop id="cover" name="cover" hint="PNG / JPG / WEBP · ≤ 4 MB" />
+            <FileDrop id="cover" name="cover" endpoint="projectCover" hint="PNG / JPG / WEBP · ≤ 4 MB" />
             {state.errors?.cover && <p className={errClass}>{state.errors.cover}</p>}
           </div>
 
@@ -485,7 +493,7 @@ export function SubmitForm({
             <span className={labelClass}>
               More media <span className="text-muted/70">(optional)</span>
             </span>
-            <FileDrop id="media" name="media" multiple hint="Up to 4 · 4 MB each" />
+            <FileDrop id="media" name="media" endpoint="projectMedia" multiple hint="Up to 4 · 4 MB each" />
             {state.errors?.media && <p className={errClass}>{state.errors.media}</p>}
           </div>
 
