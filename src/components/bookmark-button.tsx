@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { toggleBookmark } from "@/app/actions";
+import { useRequireAuth } from "@/lib/require-auth";
 
 // Same remount-on-key trick as UpvoteButton: call sites key this by saved
 // state so fresh server data replaces the optimistic value without an effect.
@@ -16,11 +17,14 @@ export function BookmarkButton({
 }) {
   const [on, setOn] = useState(saved);
   const [, startTransition] = useTransition();
+  const requireAuth = useRequireAuth();
 
   const toggle = (e: React.MouseEvent) => {
     // Rows wrap this in a link to the project — don't navigate on save.
     e.preventDefault();
     e.stopPropagation();
+    // Opens the modal right here instead of letting the server bounce them.
+    if (!requireAuth()) return;
     setOn(!on);
     startTransition(async () => {
       await toggleBookmark(id);

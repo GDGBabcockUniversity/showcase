@@ -1,6 +1,6 @@
 "use client";
 
-import { OPEN_AUTH_MODAL_EVENT } from "@/components/auth-modal";
+import { openAuthModal } from "@/lib/require-auth";
 
 export function SignInTrigger({
   children,
@@ -12,7 +12,7 @@ export function SignInTrigger({
   return (
     <button
       type="button"
-      onClick={() => window.dispatchEvent(new Event(OPEN_AUTH_MODAL_EVENT))}
+      onClick={openAuthModal}
       className={className}
     >
       {children}
