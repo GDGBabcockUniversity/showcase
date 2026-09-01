@@ -56,9 +56,6 @@ export async function Nav() {
               </Link>
             ))}
           </div>
-          <span className="hidden items-center gap-2 font-mono text-[10px] uppercase tracking-wider text-green lg:flex">
-            <span className="h-1.5 w-1.5 rounded-full bg-green" /> live
-          </span>
           <ThemeToggle initialLight={theme === "light"} />
           <AuthStatus />
         </div>

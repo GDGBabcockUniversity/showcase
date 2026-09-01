@@ -4,16 +4,18 @@ import { Nav } from "@/components/nav";
 import { Footer } from "@/components/footer";
 import { Dots } from "@/components/dots";
 import { ProductRow } from "@/components/product-row";
-import { getAllProjects, getLikedProjectIds, getTopMakers } from "@/lib/projects";
+import { getAllProjects, getBookmarkedProjectIds,
+  getLikedProjectIds, getTopMakers } from "@/lib/projects";
 import { auth } from "@/lib/auth";
 import { PROJECT_TYPES, TYPE_LABEL } from "@/lib/departments";
 import { engagementScore } from "@/lib/gauge";
 
 export default async function Home() {
   const session = await auth.api.getSession({ headers: await headers() });
-  const [projects, likedIds, makers] = await Promise.all([
+  const [projects, likedIds, savedIds, makers] = await Promise.all([
     getAllProjects(),
     session ? getLikedProjectIds(session.user.id) : Promise.resolve(new Set<string>()),
+    session ? getBookmarkedProjectIds(session.user.id) : Promise.resolve(new Set<string>()),
     getTopMakers(),
   ]);
   const ranked = [...projects].sort(
@@ -96,7 +98,7 @@ export default async function Home() {
             </div>
             <div>
               {today.map((p, i) => (
-                <ProductRow key={p.id} p={p} rank={i + 1} liked={likedIds.has(p.id)} />
+                <ProductRow key={p.id} p={p} rank={i + 1} liked={likedIds.has(p.id)} saved={savedIds.has(p.id)} />
               ))}
             </div>
 
@@ -113,7 +115,7 @@ export default async function Home() {
             </div>
             <div>
               {thisWeek.map((p, i) => (
-                <ProductRow key={p.id} p={p} rank={i + 6} liked={likedIds.has(p.id)} />
+                <ProductRow key={p.id} p={p} rank={i + 6} liked={likedIds.has(p.id)} saved={savedIds.has(p.id)} />
               ))}
             </div>
           </div>

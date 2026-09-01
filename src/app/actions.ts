@@ -5,12 +5,19 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { after } from "next/server";
-import { and, eq, ilike, ne } from "drizzle-orm";
+import { and, eq, ilike, inArray, ne } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { db } from "@/db";
-import { click, comment, like, user } from "@/db/schema";
+import { bookmark, click, comment, like, project, user } from "@/db/schema";
 import { actorKey } from "@/lib/actor";
-import { DEPARTMENTS, LEVELS } from "@/lib/departments";
+import { DEPARTMENTS, LEVELS, PROJECT_TYPES } from "@/lib/departments";
+import {
+  MAX_COLLABORATORS,
+  SUMMARY_MAX,
+  SUMMARY_MIN,
+  TITLE_MAX,
+  TITLE_MIN,
+} from "@/lib/limits";
 
 async function requireSession() {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -125,4 +132,113 @@ export async function updateProfile(
 
   revalidatePath("/account");
   return { ok: true };
+}
+
+export async function toggleBookmark(projectId: string) {
+  const session = await requireSession();
+  const userId = session.user.id;
+
+  const existing = await db
+    .select({ id: bookmark.id })
+    .from(bookmark)
+    .where(and(eq(bookmark.projectId, projectId), eq(bookmark.userId, userId)));
+
+  if (existing.length > 0) {
+    await db
+      .delete(bookmark)
+      .where(and(eq(bookmark.projectId, projectId), eq(bookmark.userId, userId)));
+  } else {
+    await db.insert(bookmark).values({ id: randomUUID(), projectId, userId });
+  }
+
+  revalidatePath("/", "layout");
+}
+
+export type EditState = {
+  ok: boolean;
+  message?: string;
+  errors?: Partial<
+    Record<"title" | "summary" | "department" | "type" | "url" | "collaborators", string>
+  >;
+};
+
+// Owner-only. The where clause carries the user id, so a project belonging to
+// someone else matches nothing and updates no rows rather than erroring late.
+export async function updateProject(
+  projectId: string,
+  _prev: EditState,
+  formData: FormData,
+): Promise<EditState> {
+  const session = await requireSession();
+
+  const title = String(formData.get("title") ?? "").trim();
+  const summary = String(formData.get("summary") ?? "").trim();
+  const department = String(formData.get("department") ?? "");
+  const type = String(formData.get("type") ?? "");
+  const url = String(formData.get("url") ?? "").trim();
+  const collaboratorIds = [
+    ...new Set(formData.getAll("collaborators").map(String).filter(Boolean)),
+  ].filter((id) => id !== session.user.id);
+
+  const errors: EditState["errors"] = {};
+  if (title.length < TITLE_MIN) errors.title = "Give it a real name.";
+  if (title.length > TITLE_MAX) errors.title = `Under ${TITLE_MAX} characters.`;
+  if (summary.length < SUMMARY_MIN)
+    errors.summary = `One full sentence, at least ${SUMMARY_MIN} characters.`;
+  if (summary.length > SUMMARY_MAX) errors.summary = `Under ${SUMMARY_MAX} characters.`;
+  if (!(DEPARTMENTS as readonly string[]).includes(department))
+    errors.department = "Pick a department.";
+  if (!(PROJECT_TYPES as readonly string[]).includes(type)) errors.type = "Pick a type.";
+  if (url) {
+    try {
+      const u = new URL(url);
+      if (u.protocol !== "http:" && u.protocol !== "https:") errors.url = "http or https only.";
+    } catch {
+      errors.url = "Not a valid URL.";
+    }
+  }
+
+  let collaborators: string[] = [];
+  if (collaboratorIds.length > MAX_COLLABORATORS) {
+    errors.collaborators = `Up to ${MAX_COLLABORATORS} collaborators.`;
+  } else if (collaboratorIds.length > 0) {
+    const found = await db
+      .select({ id: user.id })
+      .from(user)
+      .where(inArray(user.id, collaboratorIds));
+    if (found.length !== collaboratorIds.length) {
+      errors.collaborators = "One of those accounts no longer exists.";
+    }
+    collaborators = found.map((f) => f.id);
+  }
+
+  if (Object.keys(errors).length > 0) {
+    return { ok: false, errors, message: "Fix the highlighted fields." };
+  }
+
+  const updated = await db
+    .update(project)
+    .set({ title, summary, department, type, url: url || "", collaborators })
+    .where(and(eq(project.id, projectId), eq(project.userId, session.user.id)))
+    .returning({ id: project.id });
+
+  if (updated.length === 0) return { ok: false, message: "That isn't your project." };
+
+  revalidatePath("/", "layout");
+  return { ok: true, message: "Saved." };
+}
+
+export async function deleteProject(projectId: string) {
+  const session = await requireSession();
+
+  const deleted = await db
+    .delete(project)
+    .where(and(eq(project.id, projectId), eq(project.userId, session.user.id)))
+    .returning({ id: project.id });
+
+  // Nothing deleted means it wasn't theirs — don't pretend it worked.
+  if (deleted.length === 0) throw new Error("That isn't your project.");
+
+  revalidatePath("/", "layout");
+  redirect("/account");
 }

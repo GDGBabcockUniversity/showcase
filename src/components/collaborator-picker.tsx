@@ -14,15 +14,18 @@ export function CollaboratorPicker({
   name,
   max,
   labelledBy,
+  initial = [],
 }: {
   name: string;
   max: number;
   labelledBy: string;
+  // Pre-selected people, so the edit form starts from what's already saved.
+  initial?: CollaboratorOption[];
 }) {
   const listId = useId();
   const [query, setQuery] = useState("");
   const [options, setOptions] = useState<CollaboratorOption[]>([]);
-  const [picked, setPicked] = useState<CollaboratorOption[]>([]);
+  const [picked, setPicked] = useState<CollaboratorOption[]>(initial);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);

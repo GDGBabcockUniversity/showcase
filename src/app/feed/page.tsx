@@ -9,6 +9,7 @@ import { DepartmentSelect } from "@/components/department-select";
 import { SearchBox } from "@/components/search-box";
 import {
   getAllProjects,
+  getBookmarkedProjectIds,
   getLikedProjectIds,
   getTopThreeProjects,
   LAST_MONTH_LABEL,
@@ -57,9 +58,10 @@ export default async function FeedPage({
   const query = sp.q?.trim().toLowerCase();
 
   const session = await auth.api.getSession({ headers: await headers() });
-  const [projects, likedIds] = await Promise.all([
+  const [projects, likedIds, savedIds] = await Promise.all([
     getAllProjects(),
     session ? getLikedProjectIds(session.user.id) : Promise.resolve(new Set<string>()),
+    session ? getBookmarkedProjectIds(session.user.id) : Promise.resolve(new Set<string>()),
   ]);
   const filtered = projects
     .filter((p) => !typeFilter || p.type === typeFilter)
@@ -167,7 +169,7 @@ export default async function FeedPage({
                     </span>
                   </div>
                   {g.items.map((p, i) => (
-                    <ProductRow key={p.id} p={p} rank={i + 1} liked={likedIds.has(p.id)} />
+                    <ProductRow key={p.id} p={p} rank={i + 1} liked={likedIds.has(p.id)} saved={savedIds.has(p.id)} />
                   ))}
                 </div>
               ))
@@ -263,7 +265,7 @@ export default async function FeedPage({
               </Link>
             </div>
             {lastTopThree.map((p, i) => (
-              <ProductRow key={p.id} p={p} rank={i + 1} liked={likedIds.has(p.id)} />
+              <ProductRow key={p.id} p={p} rank={i + 1} liked={likedIds.has(p.id)} saved={savedIds.has(p.id)} />
             ))}
           </section>
         ) : null}

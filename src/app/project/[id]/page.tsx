@@ -9,10 +9,12 @@ import { PublishedStamp } from "@/components/dots";
 import { UpvoteButton } from "@/components/upvote-button";
 import { CommentForm } from "@/components/comment-form";
 import { VisitLink } from "@/components/visit-link";
+import { BookmarkButton } from "@/components/bookmark-button";
 import { SignInTrigger } from "@/components/sign-in-trigger";
 import {
   getAllProjects,
   getCommentsForProject,
+  getBookmarkedProjectIds,
   getLikedProjectIds,
   getProjectById,
   recordView,
@@ -99,11 +101,13 @@ export default async function ProjectPage({
   const actor = await actorKey(session);
   after(() => recordView(id, actor));
 
-  const [allProjects, likedIds, comments] = await Promise.all([
+  const [allProjects, likedIds, savedIds, comments] = await Promise.all([
     getAllProjects(),
     session ? getLikedProjectIds(session.user.id) : Promise.resolve(new Set<string>()),
+    session ? getBookmarkedProjectIds(session.user.id) : Promise.resolve(new Set<string>()),
     getCommentsForProject(id),
   ]);
+  const isOwner = session?.user.id === p.ownerId;
   const ranked = [...allProjects].sort(
     (a, b) => engagementScore(b) - engagementScore(a),
   );
@@ -159,7 +163,23 @@ export default async function ProjectPage({
               liked={likedIds.has(p.id)}
               size="lg"
             />
-            <VisitLink id={p.id} url={p.url} />
+            <div className="flex items-center gap-2">
+              <BookmarkButton
+                key={`${p.id}-${savedIds.has(p.id)}`}
+                id={p.id}
+                saved={savedIds.has(p.id)}
+                size="lg"
+              />
+              <VisitLink id={p.id} url={p.url} />
+            </div>
+            {isOwner && (
+              <Link
+                href={`/project/${p.id}/edit`}
+                className="font-mono text-[11px] uppercase tracking-wider text-muted transition-colors hover:text-blue"
+              >
+                Edit project
+              </Link>
+            )}
           </div>
         </header>
         <div className="mt-10 grid gap-10 lg:grid-cols-[minmax(0,1fr)_320px]">

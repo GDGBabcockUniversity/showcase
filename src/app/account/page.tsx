@@ -8,6 +8,8 @@ import { Dots } from "@/components/dots";
 import { ProductRow } from "@/components/product-row";
 import { auth } from "@/lib/auth";
 import {
+  getBookmarkedProjectIds,
+  getBookmarkedProjects,
   getLikedProjectIds,
   getLikedProjects,
   getProjectsByUser,
@@ -37,10 +39,12 @@ export default async function AccountPage() {
   if (!session) redirect("/?authModal=1&redirect=/account");
 
   const { user } = session;
-  const [shipped, liked, likedIds] = await Promise.all([
+  const [shipped, liked, saved, likedIds, savedIds] = await Promise.all([
     getProjectsByUser(user.id),
     getLikedProjects(user.id),
+    getBookmarkedProjects(user.id),
     getLikedProjectIds(user.id),
+    getBookmarkedProjectIds(user.id),
   ]);
 
   const totals = shipped.reduce(
@@ -111,7 +115,7 @@ export default async function AccountPage() {
               )}
               <p className="mt-1 font-mono text-[10px] uppercase tracking-wider text-muted">
                 Member since {memberSince} · {shipped.length} shipped ·{" "}
-                {liked.length} liked
+                {liked.length} liked · {saved.length} saved
               </p>
             </div>
           </div>
@@ -153,6 +157,8 @@ export default async function AccountPage() {
           subtitle="Projects filed under your account"
           projects={shipped}
           likedIds={likedIds}
+          savedIds={savedIds}
+          owned
           empty={
             <EmptyState
               text="You haven't shipped anything yet."
@@ -167,11 +173,26 @@ export default async function AccountPage() {
           subtitle="Projects you've upvoted"
           projects={liked}
           likedIds={likedIds}
+          savedIds={savedIds}
           empty={
             <EmptyState
               text="You haven't liked anything yet."
               href="/feed"
               cta="Browse the board →"
+            />
+          }
+        />
+        <ProjectSection
+          title="Saved"
+          subtitle="Projects you bookmarked to come back to"
+          projects={saved}
+          likedIds={likedIds}
+          savedIds={savedIds}
+          empty={
+            <EmptyState
+              text="You haven't saved anything yet."
+              href="/feed"
+              cta="Find something to save →"
             />
           }
         />
@@ -186,13 +207,17 @@ function ProjectSection({
   subtitle,
   projects,
   likedIds,
+  savedIds,
   empty,
+  owned,
 }: {
   title: string;
   subtitle: string;
   projects: Project[];
   likedIds: Set<string>;
+  savedIds: Set<string>;
   empty: React.ReactNode;
+  owned?: boolean;
 }) {
   return (
     <section className="mt-12">
@@ -211,7 +236,17 @@ function ProjectSection({
         <div className="mt-4">{empty}</div>
       ) : (
         projects.map((p) => (
-          <ProductRow key={p.id} p={p} liked={likedIds.has(p.id)} />
+          <div key={p.id} className="relative">
+            <ProductRow p={p} liked={likedIds.has(p.id)} saved={savedIds.has(p.id)} />
+            {owned && (
+              <Link
+                href={`/project/${p.id}/edit`}
+                className="absolute right-5 top-2 font-mono text-[10px] uppercase tracking-wider text-muted transition-colors hover:text-blue"
+              >
+                Edit
+              </Link>
+            )}
+          </div>
         ))
       )}
     </section>

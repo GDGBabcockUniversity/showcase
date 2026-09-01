@@ -105,6 +105,17 @@ export const like = pgTable("like", {
   uniqueIndex("like_project_user_idx").on(t.projectId, t.userId),
 ]);
 
+// One bookmark per (project, user), same shape as like — this is a private
+// save-for-later list rather than a public signal, so it feeds no scoring.
+export const bookmark = pgTable("bookmark", {
+  id: text("id").primaryKey(),
+  projectId: text("project_id").notNull().references(() => project.id, { onDelete: "cascade" }),
+  userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("bookmark_project_user_idx").on(t.projectId, t.userId),
+]);
+
 export const comment = pgTable("comment", {
   id: text("id").primaryKey(),
   projectId: text("project_id").notNull().references(() => project.id, { onDelete: "cascade" }),

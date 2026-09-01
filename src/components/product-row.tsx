@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { UpvotePill } from "@/components/upvote-pill";
 import { UpvoteButton } from "@/components/upvote-button";
+import { BookmarkButton } from "@/components/bookmark-button";
 import { coverGradient } from "@/lib/cover";
 import { engagementScore, type Interactions } from "@/lib/gauge";
 
@@ -18,10 +19,12 @@ export function ProductRow({
   p,
   rank,
   liked,
+  saved,
 }: {
   p: RowProject;
   rank?: number;
   liked?: boolean;
+  saved?: boolean;
 }) {
   const score = engagementScore(p);
 
@@ -81,6 +84,7 @@ export function ProductRow({
       </div>
 
       <div className="flex items-center gap-2">
+        <BookmarkButton key={`${p.id}-${!!saved}`} id={p.id} saved={!!saved} />
         <UpvoteButton key={`${p.id}-${!!liked}-${p.likes}`} id={p.id} initial={p.likes} liked={!!liked} />
         <UpvotePill signal={score} />
       </div>

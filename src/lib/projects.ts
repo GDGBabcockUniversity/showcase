@@ -1,14 +1,15 @@
 import { randomUUID } from "node:crypto";
-import { count, desc, eq, gte } from "drizzle-orm";
+import { and, count, desc, eq, gte } from "drizzle-orm";
 import type { PgTable } from "drizzle-orm/pg-core";
 import { db } from "@/db";
-import { click, comment, like, project, user, view } from "@/db/schema";
+import { bookmark, click, comment, like, project, user, view } from "@/db/schema";
 import type { Actor } from "@/lib/actor";
 import type { ProjectType } from "@/lib/departments";
 import { engagementScore, type Interactions } from "@/lib/gauge";
 
 export type Project = {
   id: string;
+  ownerId: string;
   title: string;
   summary: string;
   by: string;
@@ -21,6 +22,7 @@ export const LAST_MONTH_LABEL = "Last month";
 
 const projectColumns = {
   id: project.id,
+  ownerId: project.userId,
   title: project.title,
   summary: project.summary,
   department: project.department,
@@ -31,6 +33,7 @@ const projectColumns = {
 
 type ProjectRow = {
   id: string;
+  ownerId: string;
   title: string;
   summary: string;
   department: string;
@@ -198,6 +201,34 @@ export async function getLikedProjectIds(userId: string): Promise<Set<string>> {
     .from(like)
     .where(eq(like.userId, userId));
   return new Set(rows.map((r) => r.projectId));
+}
+
+export async function getBookmarkedProjects(userId: string): Promise<Project[]> {
+  const rows = await db
+    .select(projectColumns)
+    .from(project)
+    .innerJoin(user, eq(project.userId, user.id))
+    .innerJoin(bookmark, eq(bookmark.projectId, project.id))
+    .where(eq(bookmark.userId, userId))
+    .orderBy(desc(bookmark.createdAt));
+  return attachCounts(rows);
+}
+
+export async function getBookmarkedProjectIds(userId: string): Promise<Set<string>> {
+  const rows = await db
+    .select({ projectId: bookmark.projectId })
+    .from(bookmark)
+    .where(eq(bookmark.userId, userId));
+  return new Set(rows.map((r) => r.projectId));
+}
+
+// Ownership check for edit/delete. Returns the row only when the caller owns it.
+export async function getOwnedProject(id: string, userId: string) {
+  const rows = await db
+    .select()
+    .from(project)
+    .where(and(eq(project.id, id), eq(project.userId, userId)));
+  return rows[0];
 }
 
 export type ProjectComment = { id: string; body: string; createdAt: Date; by: string };

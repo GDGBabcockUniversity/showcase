@@ -3,14 +3,16 @@ import { Nav } from "@/components/nav";
 import { Footer } from "@/components/footer";
 import { Dots } from "@/components/dots";
 import { ProductRow } from "@/components/product-row";
-import { LAST_MONTH_LABEL, getLikedProjectIds, getTopThreeProjects } from "@/lib/projects";
+import { LAST_MONTH_LABEL, getBookmarkedProjectIds,
+  getLikedProjectIds, getTopThreeProjects } from "@/lib/projects";
 import { auth } from "@/lib/auth";
 
 export default async function ThisMonthPage() {
   const session = await auth.api.getSession({ headers: await headers() });
-  const [topThree, likedIds] = await Promise.all([
+  const [topThree, likedIds, savedIds] = await Promise.all([
     getTopThreeProjects(),
     session ? getLikedProjectIds(session.user.id) : Promise.resolve(new Set<string>()),
+    session ? getBookmarkedProjectIds(session.user.id) : Promise.resolve(new Set<string>()),
   ]);
 
   return (
@@ -33,7 +35,7 @@ export default async function ThisMonthPage() {
 
         <div className="mt-6">
           {topThree.map((project, index) => (
-            <ProductRow key={project.id} p={project} rank={index + 1} liked={likedIds.has(project.id)} />
+            <ProductRow key={project.id} p={project} rank={index + 1} liked={likedIds.has(project.id)} saved={savedIds.has(project.id)} />
           ))}
         </div>
       </main>
