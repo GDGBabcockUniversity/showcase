@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "prestart": "bunx drizzle-kit migrate",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
@@ -12,6 +13,7 @@
   },
   "dependencies": {
     "@radix-ui/react-avatar": "^1.2.6",
+    "@radix-ui/react-tabs": "^1.1.21",
     "better-auth": "^1.6.25",
     "clsx": "^2.1.1",
     "drizzle-orm": "^0.45.2",

@@ -17,6 +17,7 @@ import {
 } from "@/lib/projects";
 import { engagementScore } from "@/lib/gauge";
 import { ProfileForm } from "@/components/profile-form";
+import { AccountTabs } from "./account-tabs";
 
 export const metadata: Metadata = {
   title: "Account — GDG Babcock Showcase",
@@ -152,47 +153,49 @@ export default async function AccountPage() {
           </p>
         </section>
 
-        <ProjectSection
-          title="Shipped"
-          subtitle="Projects filed under your account"
-          projects={shipped}
-          likedIds={likedIds}
-          savedIds={savedIds}
-          owned
-          empty={
-            <EmptyState
-              text="You haven't shipped anything yet."
-              href="/submit"
-              cta="Put a project on the board →"
+        <AccountTabs
+          counts={{ shipped: shipped.length, liked: liked.length, saved: saved.length }}
+          shipped={
+            <ProjectList
+              projects={shipped}
+              likedIds={likedIds}
+              savedIds={savedIds}
+              owned
+              empty={
+                <EmptyState
+                  text="You haven't shipped anything yet."
+                  href="/submit"
+                  cta="Put a project on the board →"
+                />
+              }
             />
           }
-        />
-
-        <ProjectSection
-          title="Liked"
-          subtitle="Projects you've upvoted"
-          projects={liked}
-          likedIds={likedIds}
-          savedIds={savedIds}
-          empty={
-            <EmptyState
-              text="You haven't liked anything yet."
-              href="/feed"
-              cta="Browse the board →"
+          liked={
+            <ProjectList
+              projects={liked}
+              likedIds={likedIds}
+              savedIds={savedIds}
+              empty={
+                <EmptyState
+                  text="You haven't liked anything yet."
+                  href="/feed"
+                  cta="Browse the board →"
+                />
+              }
             />
           }
-        />
-        <ProjectSection
-          title="Saved"
-          subtitle="Projects you bookmarked to come back to"
-          projects={saved}
-          likedIds={likedIds}
-          savedIds={savedIds}
-          empty={
-            <EmptyState
-              text="You haven't saved anything yet."
-              href="/feed"
-              cta="Find something to save →"
+          saved={
+            <ProjectList
+              projects={saved}
+              likedIds={likedIds}
+              savedIds={savedIds}
+              empty={
+                <EmptyState
+                  text="You haven't saved anything yet."
+                  href="/feed"
+                  cta="Find something to save →"
+                />
+              }
             />
           }
         />
@@ -202,53 +205,36 @@ export default async function AccountPage() {
   );
 }
 
-function ProjectSection({
-  title,
-  subtitle,
+function ProjectList({
   projects,
   likedIds,
   savedIds,
   empty,
   owned,
 }: {
-  title: string;
-  subtitle: string;
   projects: Project[];
   likedIds: Set<string>;
   savedIds: Set<string>;
   empty: React.ReactNode;
   owned?: boolean;
 }) {
+  if (projects.length === 0) return <div className="mt-4">{empty}</div>;
+
   return (
-    <section className="mt-12">
-      <div className="flex items-baseline justify-between border-b border-border pb-3">
-        <div>
-          <p className="eyebrow">{title}</p>
-          <h2 className="mt-1 font-display text-xl font-semibold tracking-tight">
-            {subtitle}
-          </h2>
+    <div>
+      {projects.map((p) => (
+        <div key={p.id} className="relative">
+          <ProductRow p={p} liked={likedIds.has(p.id)} saved={savedIds.has(p.id)} />
+          {owned && (
+            <Link
+              href={`/project/${p.id}/edit`}
+              className="absolute right-5 top-2 font-mono text-[10px] uppercase tracking-wider text-muted transition-colors hover:text-blue"
+            >
+              Edit
+            </Link>
+          )}
         </div>
-        <span className="font-mono text-[10px] uppercase tracking-wider text-muted">
-          {projects.length}
-        </span>
-      </div>
-      {projects.length === 0 ? (
-        <div className="mt-4">{empty}</div>
-      ) : (
-        projects.map((p) => (
-          <div key={p.id} className="relative">
-            <ProductRow p={p} liked={likedIds.has(p.id)} saved={savedIds.has(p.id)} />
-            {owned && (
-              <Link
-                href={`/project/${p.id}/edit`}
-                className="absolute right-5 top-2 font-mono text-[10px] uppercase tracking-wider text-muted transition-colors hover:text-blue"
-              >
-                Edit
-              </Link>
-            )}
-          </div>
-        ))
-      )}
-    </section>
+      ))}
+    </div>
   );
 }
