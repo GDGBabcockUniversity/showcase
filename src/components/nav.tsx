@@ -1,8 +1,10 @@
 import Link from "next/link";
+import { Suspense } from "react";
 import { cookies } from "next/headers";
 import { THEME_COOKIE, themeFromCookie } from "@/lib/theme";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { AuthStatus } from "@/components/auth-status";
+import { SearchBox } from "@/components/search-box";
 
 const LINKS = [
   { href: "/", label: "Home" },
@@ -43,6 +45,14 @@ export async function Nav() {
             </span>
           </span>
         </Link>
+
+        {/* Suspense because SearchBox reads useSearchParams, same as AuthModal
+            in the root layout. Hidden on small screens — no room in a 4.5rem bar. */}
+        <Suspense fallback={<div className="hidden flex-1 lg:block lg:max-w-xs" />}>
+          <div className="hidden flex-1 lg:block lg:max-w-xs">
+            <SearchBox />
+          </div>
+        </Suspense>
 
         <div className="flex items-center gap-3">
           <div className="hidden items-center gap-1 rounded-full border border-border bg-surface/70 p-1 md:flex">

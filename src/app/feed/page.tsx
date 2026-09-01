@@ -6,7 +6,6 @@ import { Footer } from "@/components/footer";
 import { Dots } from "@/components/dots";
 import { ProductRow } from "@/components/product-row";
 import { DepartmentSelect } from "@/components/department-select";
-import { SearchBox } from "@/components/search-box";
 import {
   getAllProjects,
   getBookmarkedProjectIds,
@@ -146,10 +145,7 @@ export default async function FeedPage({
               </Link>
             ))}
           </div>
-          <div className="flex items-center gap-3">
-            <SearchBox current={sp.q} />
-            <DepartmentSelect current={deptFilter} />
-          </div>
+          <DepartmentSelect current={deptFilter} />
         </div>
 
         <div className="mt-8 grid gap-10 lg:grid-cols-[minmax(0,1fr)_280px]">
