@@ -8,7 +8,7 @@ import { searchUsers, type CollaboratorOption } from "@/app/actions";
 const DEBOUNCE_MS = 250;
 
 const inputClass =
-  "w-full rounded-xl border border-border bg-bg px-3 py-2 text-sm text-fg outline-none transition-colors placeholder:text-muted focus:border-blue/60";
+  "w-full rounded-xl border border-border bg-bg px-3 py-2 text-sm text-fg outline-none transition-colors placeholder:text-muted focus:border-blue";
 
 export function CollaboratorPicker({
   name,

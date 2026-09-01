@@ -22,7 +22,7 @@ export function CommentForm({ projectId }: { projectId: string }) {
         maxLength={500}
         rows={3}
         placeholder="What stood out to you?"
-        className="w-full rounded-xl border border-border bg-bg px-3 py-2 text-sm text-fg outline-none transition-colors placeholder:text-muted focus:border-blue/60 resize-y"
+        className="w-full rounded-xl border border-border bg-bg px-3 py-2 text-sm text-fg outline-none transition-colors placeholder:text-muted focus:border-blue resize-y"
       />
       {state.error && <p className="font-mono text-[11px] text-red">{state.error}</p>}
       <button

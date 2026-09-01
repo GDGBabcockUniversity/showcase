@@ -49,6 +49,16 @@ body {
   border-radius: 2px;
 }
 
+/* Text fields already signal focus by turning their border blue, so the extra
+   outline just reads as a double ring. Everything else keeps it — radios,
+   checkboxes and file inputs are excluded because their visible affordance is
+   the label around them, not a border of their own. */
+input:not([type="radio"], [type="checkbox"], [type="file"]):focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

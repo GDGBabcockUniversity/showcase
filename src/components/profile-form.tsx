@@ -6,7 +6,7 @@ import { DEPARTMENTS, LEVELS } from "@/lib/departments";
 import { useSession } from "@/lib/auth-client";
 
 const inputClass =
-  "w-full rounded-xl border border-border bg-bg px-3 py-2 text-sm text-fg outline-none transition-colors placeholder:text-muted focus:border-blue/60";
+  "w-full rounded-xl border border-border bg-bg px-3 py-2 text-sm text-fg outline-none transition-colors placeholder:text-muted focus:border-blue";
 const labelClass = "block font-mono text-[10px] uppercase tracking-wider text-muted";
 
 const initial: ProfileState = { ok: false };
