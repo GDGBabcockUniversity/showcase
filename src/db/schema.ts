@@ -9,6 +9,12 @@ export const user = pgTable("user", {
   email: text("email").notNull().unique(),
   emailVerified: boolean("email_verified").notNull().default(false),
   image: text("image"),
+  // Public handle used in profile URLs. Generated at sign-up (see
+  // src/lib/username.ts); nullable so accounts created before it existed still
+  // work — those fall back to their id in links.
+  username: text("username").unique(),
+  // Free text, shown on the public profile. Nullable: nobody is made to write one.
+  bio: text("bio"),
   // Collected at sign-up. Nullable: Google sign-ins never pass through that form.
   department: text("department"),
   level: text("level"),
@@ -56,16 +62,19 @@ export const verification = pgTable("verification", {
 export const project = pgTable("project", {
   id: text("id").primaryKey(),
   userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
-  // lengths mirror src/lib/limits.ts — the last line of defence if a write
-  // ever reaches the table without going through the submit form
+
   title: varchar("title", { length: TITLE_MAX }).notNull(),
   summary: varchar("summary", { length: SUMMARY_MAX }).notNull(),
-  department: text("department").notNull(),
   type: text("type").notNull(),
   url: text("url").notNull(),
   collaborators: jsonb("collaborators").$type<string[]>().notNull().default([]),
   cover: text("cover"),
   media: jsonb("media").$type<string[]>().notNull().default([]),
+  // Drafts are half-filled saves: they skip validation and stay off every
+  // public list until the owner publishes from the edit page.
+  draft: boolean("draft").notNull().default(false),
+  
+  releaseAt: timestamp("release_at").notNull().defaultNow(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

@@ -3,6 +3,7 @@ import { nextCookies } from "better-auth/next-js";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { db } from "@/db";
 import * as schema from "@/db/schema";
+import { resolveUsername } from "@/lib/username-db";
 
 export const auth = betterAuth({
   database: drizzleAdapter(db, { provider: "pg", schema }),
@@ -14,8 +15,26 @@ export const auth = betterAuth({
   user: {
     additionalFields: {
       // Optional so Google sign-ins, which skip the sign-up form, still work.
+      bio: { type: "string", required: false, input: true },
       department: { type: "string", required: false, input: true },
       level: { type: "string", required: false, input: true },
+      // Accepted from the sign-up form, but never trusted as-is: the hook
+      // below slugifies it and resolves collisions.
+      username: { type: "string", required: false, input: true },
+    },
+  },
+  databaseHooks: {
+    user: {
+      create: {
+        before: async (u) => ({
+          data: {
+            ...u,
+            username: await resolveUsername(
+              typeof u.username === "string" ? u.username : undefined,
+            ),
+          },
+        }),
+      },
     },
   },
   socialProviders: {
