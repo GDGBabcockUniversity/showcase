@@ -103,3 +103,26 @@ select:focus-visible {
     transform: translate3d(3%, -4%, 0) scale(1.12);
   }
 }
+
+/* Dialog enter/exit. The animate-in utilities belong to tw-animate-css, which
+   isn't installed — two keyframes are cheaper than the dependency. */
+@keyframes dialog-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes dialog-zoom-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.96);
+  }
+}
+
+[data-slot="dialog-overlay"][data-state="open"] {
+  animation: dialog-fade-in 150ms ease-out;
+}
+
+[data-slot="dialog-content"][data-state="open"] {
+  animation: dialog-zoom-in 150ms ease-out;
+}
