@@ -33,7 +33,6 @@ export default async function Home() {
           <div>
             <p className="eyebrow flex items-center gap-3">
               <Dots />
-              Tuesday · July 22, 2026
             </p>
             <h1 className="mt-4 font-display text-4xl font-bold leading-[0.95] tracking-tight sm:text-5xl">
               What Babcock shipped today.
@@ -59,8 +58,7 @@ export default async function Home() {
             </Link>
           </div>
         </section>
-
-        {/* Category chips */}
+        
         <div className="mt-6 flex flex-wrap items-center gap-2">
           <span className="pr-1 font-mono text-[10px] uppercase tracking-wider text-muted">
             Categories

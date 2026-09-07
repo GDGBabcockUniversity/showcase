@@ -77,3 +77,29 @@ select:focus-visible {
   text-transform: uppercase;
   color: var(--color-muted);
 }
+
+/* Celebration page: falling confetti and the slow colour drift behind it.
+   Both are already covered by the prefers-reduced-motion block above. */
+@keyframes confetti-fall {
+  0% {
+    transform: translate3d(0, -12vh, 0) rotate(0deg);
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate3d(var(--drift, 0), 105vh, 0) rotate(720deg);
+    opacity: 0.9;
+  }
+}
+
+@keyframes gdg-drift {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(3%, -4%, 0) scale(1.12);
+  }
+}
