@@ -1,14 +1,14 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
+import { LuX } from "react-icons/lu";
 import { searchUsers, type CollaboratorOption } from "@/app/actions";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 // Typeahead, so this is short on purpose — unlike the feed search box, which
 // waits 3s because each keystroke there costs a full page navigation.
 const DEBOUNCE_MS = 250;
-
-const inputClass =
-  "w-full rounded-xl border border-border bg-bg px-3 py-2 text-sm text-fg outline-none transition-colors placeholder:text-muted focus:border-blue";
 
 export function CollaboratorPicker({
   name,
@@ -98,20 +98,22 @@ export function CollaboratorPicker({
               className="flex items-center gap-2 rounded-full border border-border bg-bg px-3 py-1 text-sm"
             >
               {p.name}
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="none"
                 onClick={() => remove(p.id)}
                 aria-label={`Remove ${p.name}`}
-                className="text-muted transition-colors hover:text-red"
+                className="text-muted hover:bg-transparent hover:text-red"
               >
-                ✕
-              </button>
+                <LuX size={12} aria-hidden />
+              </Button>
             </li>
           ))}
         </ul>
       )}
 
-      <input
+      <Input
         type="text"
         role="combobox"
         aria-expanded={open}
@@ -124,7 +126,6 @@ export function CollaboratorPicker({
         onChange={(e) => onQueryChange(e.target.value)}
         onFocus={() => available.length > 0 && setOpen(true)}
         placeholder={full ? `${max} collaborators added` : "Search by name…"}
-        className={`${inputClass} disabled:opacity-50`}
       />
 
       {open && (

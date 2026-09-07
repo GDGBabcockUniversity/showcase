@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { signOut, useSession } from "@/lib/auth-client";
 import { SignInTrigger } from "@/components/sign-in-trigger";
+import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 export function AuthStatus() {
@@ -39,13 +40,15 @@ export function AuthStatus() {
         </Avatar>
         <span className="sr-only">Your account, {name}</span>
       </Link>
-      <button
+      <Button
         type="button"
+        variant="outline"
+        size="none"
         onClick={() => signOut()}
-        className="rounded-full border border-border px-3 py-1.5 text-sm text-muted transition-colors hover:border-blue/60 hover:text-fg"
+        className="px-3 py-1.5 text-sm text-muted hover:text-fg"
       >
         Sign out
-      </button>
+      </Button>
     </div>
   );
 }

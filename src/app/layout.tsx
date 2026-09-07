@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import { Bricolage_Grotesque, Inter, JetBrains_Mono } from "next/font/google";
 import { AuthModal } from "@/components/auth-modal";
+import { Toaster } from "@/components/ui/sonner";
 import { cookies } from "next/headers";
 import { THEME_COOKIE, themeFromCookie } from "@/lib/theme";
 import "./globals.css";
@@ -41,6 +42,7 @@ export default async function RootLayout({
         <Suspense fallback={null}>
           <AuthModal />
         </Suspense>
+        <Toaster initialLight={theme === "light"} />
       </body>
     </html>
   );

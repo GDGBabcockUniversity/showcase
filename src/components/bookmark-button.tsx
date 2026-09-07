@@ -1,5 +1,7 @@
 "use client";
 
+import { LuBookmark } from "react-icons/lu";
+
 import { useState, useTransition } from "react";
 import { toggleBookmark } from "@/app/actions";
 import { useRequireAuth } from "@/lib/require-auth";
@@ -48,21 +50,11 @@ export function BookmarkButton({
           : "border-border bg-panel text-muted hover:border-yellow hover:text-yellow",
       ].join(" ")}
     >
-      <svg
-        width={lg ? 16 : 14}
-        height={lg ? 16 : 14}
-        viewBox="0 0 24 24"
+      <LuBookmark
+        size={lg ? 16 : 14}
         fill={on ? "currentColor" : "none"}
         aria-hidden
-      >
-        <path
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          d="M6 4h12v16l-6-4-6 4V4z"
-        />
-      </svg>
+      />
     </button>
   );
 }

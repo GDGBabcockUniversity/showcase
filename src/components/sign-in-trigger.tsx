@@ -1,6 +1,7 @@
 "use client";
 
 import { openAuthModal } from "@/lib/require-auth";
+import { Button } from "@/components/ui/button";
 
 export function SignInTrigger({
   children,
@@ -10,12 +11,9 @@ export function SignInTrigger({
   className?: string;
 }) {
   return (
-    <button
-      type="button"
-      onClick={openAuthModal}
-      className={className}
-    >
+    // Callers pass their own styling, so this stays unopinionated.
+    <Button type="button" variant="ghost" size="none" onClick={openAuthModal} className={className}>
       {children}
-    </button>
+    </Button>
   );
 }
