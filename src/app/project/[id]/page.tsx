@@ -1,22 +1,29 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { headers } from "next/headers";
+import { after } from "next/server";
 import { notFound } from "next/navigation";
 import { Nav } from "@/components/nav";
 import { Footer } from "@/components/footer";
 import { PublishedStamp } from "@/components/dots";
 import { UpvoteButton } from "@/components/upvote-button";
 import { CommentForm } from "@/components/comment-form";
+import { MediaSlider } from "@/components/media-slider";
 import { VisitLink } from "@/components/visit-link";
+import { BookmarkButton } from "@/components/bookmark-button";
 import { SignInTrigger } from "@/components/sign-in-trigger";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   getAllProjects,
   getCommentsForProject,
+  getBookmarkedProjectIds,
   getLikedProjectIds,
   getProjectById,
+  getProjectMakers,
   recordView,
 } from "@/lib/projects";
 import { auth } from "@/lib/auth";
+import { actorKey } from "@/lib/actor";
 import { TYPE_LABEL } from "@/lib/departments";
 import { coverGradient } from "@/lib/cover";
 import { engagementScore, type Interactions } from "@/lib/gauge";
@@ -91,12 +98,20 @@ export default async function ProjectPage({
   const engagement = engagementScore(p);
 
   const session = await auth.api.getSession({ headers: await headers() });
-  const [allProjects, likedIds, comments] = await Promise.all([
+
+  // Resolve the actor now (reads request headers, only legal during render),
+  // then write the view after the response is sent so it never blocks the page.
+  const actor = await actorKey(session);
+  after(() => recordView(id, actor));
+
+  const [allProjects, likedIds, savedIds, comments, makers] = await Promise.all([
     getAllProjects(),
     session ? getLikedProjectIds(session.user.id) : Promise.resolve(new Set<string>()),
+    session ? getBookmarkedProjectIds(session.user.id) : Promise.resolve(new Set<string>()),
     getCommentsForProject(id),
-    recordView(id, session?.user.id),
+    getProjectMakers(id),
   ]);
+  const isOwner = session?.user.id === p.ownerId;
   const ranked = [...allProjects].sort(
     (a, b) => engagementScore(b) - engagementScore(a),
   );
@@ -107,6 +122,8 @@ export default async function ProjectPage({
     ...allProjects.filter((i) => i.id !== p.id && i.department === p.department),
     ...allProjects.filter((i) => i.id !== p.id && i.department !== p.department),
   ].slice(0, 4);
+
+  const slides = [p.cover, ...p.media].filter((src): src is string => !!src);
 
   const metrics: { key: keyof Interactions; label: string }[] = [
     { key: "views", label: "Views" },
@@ -119,32 +136,47 @@ export default async function ProjectPage({
     <>
       <Nav />
       <main className="mx-auto max-w-6xl px-5 py-10 sm:py-14">
-        <Link
-          href="/feed"
-          className="font-mono text-[11px] uppercase tracking-wider text-muted transition-colors hover:text-fg"
-        >
-          ← Back to the board
-        </Link>
 
         {/* Header row */}
         <header className="mt-8 grid gap-8 border-b border-border pb-8 sm:grid-cols-[1fr_auto] sm:items-start">
           <div className="min-w-0">
-            <p className="font-mono text-[10px] uppercase tracking-wider text-muted">
-              {p.department} · {TYPE_LABEL[p.type]}
-            </p>
-            <h1 className="mt-3 font-display text-[2.75rem] font-bold leading-[0.95] tracking-tight sm:text-6xl">
+
+            <h1 className="mt-3 break-words font-display text-[2.75rem] font-bold leading-[0.95] tracking-tight sm:text-6xl">
               {p.title}
             </h1>
-            <p className="mt-5 max-w-2xl font-display text-2xl italic leading-tight tracking-tight text-muted sm:text-3xl">
-              {p.summary}
-            </p>
-            <p className="mt-6 font-mono text-xs uppercase tracking-wider text-muted">
-              Shipped by <span className="text-fg">{p.by}</span>
-            </p>
+            <div className="mt-6">
+              <p className="font-mono text-[10px] uppercase tracking-wider text-muted">
+                Shipped by
+              </p>
+              <ul className="mt-3 flex flex-wrap items-center gap-2">
+                {makers.map((m) => (
+                  <li key={m.id}>
+                    <Link
+                      href={`/u/${m.username}`}
+                      className="flex items-center gap-2 rounded-full border border-border py-1 pl-1 pr-3 transition-colors hover:border-blue/60 hover:text-blue"
+                    >
+                      <Avatar className="size-7 border border-border">
+                        {m.image && <AvatarImage src={m.image} alt="" />}
+                        <AvatarFallback className="font-display text-xs font-semibold">
+                          {m.name[0]}
+                        </AvatarFallback>
+                      </Avatar>
+                      <span className="text-sm">
+                        {m.username ? `@${m.username}` : m.name}
+                      </span>
+                      {m.owner && (
+                        <span className="font-mono text-[9px] uppercase tracking-wider text-muted">
+                          Maker
+                        </span>
+                      )}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
           </div>
 
           <div className="flex flex-col items-start gap-3 sm:items-end">
-            <PublishedStamp />
             <UpvoteButton
               key={`${p.id}-${likedIds.has(p.id)}-${p.likes}`}
               id={p.id}
@@ -152,7 +184,23 @@ export default async function ProjectPage({
               liked={likedIds.has(p.id)}
               size="lg"
             />
-            <VisitLink id={p.id} url={p.url} />
+            <div className="flex items-center gap-2">
+              <BookmarkButton
+                key={`${p.id}-${savedIds.has(p.id)}`}
+                id={p.id}
+                saved={savedIds.has(p.id)}
+                size="lg"
+              />
+              <VisitLink id={p.id} url={p.url} />
+            </div>
+            {isOwner && (
+              <Link
+                href={`/project/${p.id}/edit`}
+                className="font-mono text-[11px] uppercase tracking-wider text-muted transition-colors hover:text-blue"
+              >
+                Edit project
+              </Link>
+            )}
           </div>
         </header>
         <div className="mt-10 grid gap-10 lg:grid-cols-[minmax(0,1fr)_320px]">
@@ -161,25 +209,32 @@ export default async function ProjectPage({
             {/* Cover cell — framed like a film cell */}
             <figure id="overview">
               <div className="flex items-center justify-between font-mono text-[10px] uppercase tracking-wider text-muted">
-                <span>// cover</span>
-                <span>01 / 01</span>
+                <span>{"// media"}</span>
+                <span>{String(slides.length || 1).padStart(2, "0")} total</span>
               </div>
-              <div
-                className="mt-2 aspect-[16/9] w-full rounded-2xl"
-                style={{ background: coverGradient(p.title) }}
-                aria-hidden
-              />
+              {/* Cover first, then any extra media — one image per slide. The
+                  gradient stands in for projects filed before covers were
+                  required. */}
+              {slides.length > 0 ? (
+                <MediaSlider images={slides} title={p.title} />
+              ) : (
+                <div
+                  className="mt-2 aspect-[16/9] w-full rounded-2xl"
+                  style={{ background: coverGradient(p.title) }}
+                  aria-hidden
+                />
+              )}
             </figure>
 
             {/* About */}
             <section className="mt-12">
               <p className="eyebrow">About the build</p>
-              <p className="mt-4 max-w-2xl text-base leading-relaxed text-fg">
+              <p className="mt-4 max-w-2xl break-words text-base leading-relaxed text-fg">
                 {p.summary}
               </p>
-              <p className="mt-4 max-w-2xl text-sm leading-relaxed text-muted">
-                Filed under {p.department.toLowerCase()} as a{" "}
-                {TYPE_LABEL[p.type].toLowerCase()} project. Every submission is
+              <p className="mt-4 max-w-2xl break-words text-sm leading-relaxed text-muted">
+                Filed as a {TYPE_LABEL[p.type].toLowerCase()} project by a
+                maker in {p.department.toLowerCase()}. Every submission is
                 read by a reviewer before it lands on the board, so being here
                 means someone signed off on what {p.by.split(" ")[0]} shipped.
               </p>
@@ -267,12 +322,12 @@ export default async function ProjectPage({
                   {comments.map((c) => (
                     <li key={c.id} className="border-b border-border pb-5 last:border-0">
                       <div className="flex items-baseline justify-between gap-3">
-                        <p className="text-sm font-medium">{c.by}</p>
+                        <p className="min-w-0 break-words text-sm font-medium">{c.by}</p>
                         <p className="font-mono text-[10px] uppercase tracking-wider text-muted">
                           {c.createdAt.toLocaleDateString()}
                         </p>
                       </div>
-                      <p className="mt-1.5 text-sm leading-relaxed text-muted">{c.body}</p>
+                      <p className="mt-1.5 break-words text-sm leading-relaxed text-muted">{c.body}</p>
                     </li>
                   ))}
                 </ol>
@@ -360,10 +415,8 @@ export default async function ProjectPage({
               <p className="eyebrow">Project info</p>
               <div className="mt-4 divide-y divide-border">
                 {[
-                  { label: "Maker", value: p.by },
                   { label: "Department", value: p.department },
                   { label: "Type", value: TYPE_LABEL[p.type] },
-                  { label: "Status", value: "Published" },
                 ].map((row) => (
                   <div
                     key={row.label}
@@ -372,7 +425,7 @@ export default async function ProjectPage({
                     <dt className="font-mono text-[10px] uppercase tracking-wider text-muted">
                       {row.label}
                     </dt>
-                    <dd className="text-right text-sm font-medium">{row.value}</dd>
+                    <dd className="min-w-0 break-words text-right text-sm font-medium">{row.value}</dd>
                   </div>
                 ))}
               </div>

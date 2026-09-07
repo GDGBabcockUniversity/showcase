@@ -1,7 +1,10 @@
 "use client";
 
+import { LuArrowBigUp } from "react-icons/lu";
+
 import { useState, useTransition } from "react";
 import { toggleLike } from "@/app/actions";
+import { useRequireAuth } from "@/lib/require-auth";
 
 // Keyed by `${id}-${liked}-${initial}` at every call site: when the server
 // confirms new counts (after revalidation), React remounts this with fresh
@@ -20,10 +23,13 @@ export function UpvoteButton({
   const [voted, setVoted] = useState(liked);
   const [count, setCount] = useState(initial);
   const [, startTransition] = useTransition();
+  const requireAuth = useRequireAuth();
 
   const toggle = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    // Opens the modal right here instead of letting the server bounce them.
+    if (!requireAuth()) return;
     const next = !voted;
     setVoted(next);
     setCount((c) => c + (next ? 1 : -1));
@@ -48,21 +54,11 @@ export function UpvoteButton({
           : "border-border bg-panel text-fg hover:border-blue hover:text-blue",
       ].join(" ")}
     >
-      <svg
-        width={lg ? 16 : 12}
-        height={lg ? 16 : 12}
-        viewBox="0 0 24 24"
+      <LuArrowBigUp
+        size={lg ? 16 : 12}
         fill={voted ? "currentColor" : "none"}
         aria-hidden
-      >
-        <path
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          d="M12 4l8 9h-5v7h-6v-7H4l8-9z"
-        />
-      </svg>
+      />
       <span>{count}</span>
     </button>
   );

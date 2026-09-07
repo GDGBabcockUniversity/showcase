@@ -6,13 +6,12 @@ import { Footer } from "@/components/footer";
 import { Dots } from "@/components/dots";
 import { ProductRow } from "@/components/product-row";
 import { DepartmentSelect } from "@/components/department-select";
-import { SearchBox } from "@/components/search-box";
 import {
   getAllProjects,
+  getBookmarkedProjectIds,
   getLikedProjectIds,
   getTopThreeProjects,
   LAST_MONTH_LABEL,
-  type Project,
 } from "@/lib/projects";
 import { auth } from "@/lib/auth";
 import {
@@ -22,6 +21,7 @@ import {
   type ProjectType,
 } from "@/lib/departments";
 import { ENGAGEMENT_WEIGHTS, engagementScore } from "@/lib/gauge";
+import { relativeDate } from "@/lib/when";
 
 export const metadata: Metadata = {
   title: "Feed — GDG Babcock Showcase",
@@ -57,9 +57,10 @@ export default async function FeedPage({
   const query = sp.q?.trim().toLowerCase();
 
   const session = await auth.api.getSession({ headers: await headers() });
-  const [projects, likedIds] = await Promise.all([
+  const [projects, likedIds, savedIds] = await Promise.all([
     getAllProjects(),
     session ? getLikedProjectIds(session.user.id) : Promise.resolve(new Set<string>()),
+    session ? getBookmarkedProjectIds(session.user.id) : Promise.resolve(new Set<string>()),
   ]);
   const filtered = projects
     .filter((p) => !typeFilter || p.type === typeFilter)
@@ -76,12 +77,18 @@ export default async function FeedPage({
     (a, b) => engagementScore(b) - engagementScore(a),
   );
 
-  // Fake launch-day grouping so the feed feels PH-shaped.
-  const groups: { label: string; items: Project[] }[] = [
-    { label: "Today · July 22", items: ranked.slice(0, 4) },
-    { label: "Yesterday · July 21", items: ranked.slice(4, 7) },
-    { label: "Earlier this week", items: ranked.slice(7) },
-  ].filter((g) => g.items.length > 0);
+  // Buckets get coarser the further back you go — Today, Yesterday, Last
+  // week, Last month, then the filing date itself. Labels come out in date
+  // order; inside each one the signal ranking is preserved.
+  const newestFirst = [...filtered].sort(
+    (a, b) => b.createdAt.getTime() - a.createdAt.getTime(),
+  );
+  const groups = [...new Set(newestFirst.map((p) => relativeDate(p.createdAt)))].map(
+    (label) => ({
+      label,
+      items: ranked.filter((p) => relativeDate(p.createdAt) === label),
+    }),
+  );
 
   const trending = ranked.slice(0, 5);
 
@@ -113,20 +120,6 @@ export default async function FeedPage({
               weighted interaction of the campus community.
             </p>
           </div>
-          <div className="flex items-end gap-6 font-mono text-xs text-muted">
-            <div>
-              <p className="text-[10px] uppercase tracking-wider">Filed</p>
-              <p className="font-display text-3xl font-semibold tabular-nums text-fg">
-                {filtered.length}
-              </p>
-            </div>
-            <div>
-              <p className="text-[10px] uppercase tracking-wider">Departments</p>
-              <p className="font-display text-3xl font-semibold tabular-nums text-fg">
-                {new Set(filtered.map((p) => p.department)).size}
-              </p>
-            </div>
-          </div>
         </section>
 
         {/* Filter bar */}
@@ -144,10 +137,7 @@ export default async function FeedPage({
               </Link>
             ))}
           </div>
-          <div className="flex items-center gap-3">
-            <SearchBox current={sp.q} />
-            <DepartmentSelect current={deptFilter} />
-          </div>
+          <DepartmentSelect current={deptFilter} />
         </div>
 
         <div className="mt-8 grid gap-10 lg:grid-cols-[minmax(0,1fr)_280px]">
@@ -167,7 +157,7 @@ export default async function FeedPage({
                     </span>
                   </div>
                   {g.items.map((p, i) => (
-                    <ProductRow key={p.id} p={p} rank={i + 1} liked={likedIds.has(p.id)} />
+                    <ProductRow key={p.id} p={p} rank={i + 1} liked={likedIds.has(p.id)} saved={savedIds.has(p.id)} />
                   ))}
                 </div>
               ))
@@ -263,7 +253,7 @@ export default async function FeedPage({
               </Link>
             </div>
             {lastTopThree.map((p, i) => (
-              <ProductRow key={p.id} p={p} rank={i + 1} liked={likedIds.has(p.id)} />
+              <ProductRow key={p.id} p={p} rank={i + 1} liked={likedIds.has(p.id)} saved={savedIds.has(p.id)} />
             ))}
           </section>
         ) : null}

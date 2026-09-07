@@ -1,0 +1,60 @@
+"use client";
+
+import { LuBookmark } from "react-icons/lu";
+
+import { useState, useTransition } from "react";
+import { toggleBookmark } from "@/app/actions";
+import { useRequireAuth } from "@/lib/require-auth";
+
+// Same remount-on-key trick as UpvoteButton: call sites key this by saved
+// state so fresh server data replaces the optimistic value without an effect.
+export function BookmarkButton({
+  id,
+  saved,
+  size = "sm",
+}: {
+  id: string;
+  saved: boolean;
+  size?: "sm" | "lg";
+}) {
+  const [on, setOn] = useState(saved);
+  const [, startTransition] = useTransition();
+  const requireAuth = useRequireAuth();
+
+  const toggle = (e: React.MouseEvent) => {
+    // Rows wrap this in a link to the project — don't navigate on save.
+    e.preventDefault();
+    e.stopPropagation();
+    // Opens the modal right here instead of letting the server bounce them.
+    if (!requireAuth()) return;
+    setOn(!on);
+    startTransition(async () => {
+      await toggleBookmark(id);
+    });
+  };
+
+  const lg = size === "lg";
+
+  return (
+    <button
+      type="button"
+      onClick={toggle}
+      aria-pressed={on}
+      aria-label={on ? "Remove from saved" : "Save for later"}
+      title={on ? "Remove from saved" : "Save for later"}
+      className={[
+        "inline-flex shrink-0 items-center justify-center rounded-xl border transition-colors h-[50px]",
+        lg ? "w-[46px]" : "w-[44px]",
+        on
+          ? "border-yellow bg-yellow/10 text-yellow"
+          : "border-border bg-panel text-muted hover:border-yellow hover:text-yellow",
+      ].join(" ")}
+    >
+      <LuBookmark
+        size={lg ? 16 : 14}
+        fill={on ? "currentColor" : "none"}
+        aria-hidden
+      />
+    </button>
+  );
+}
