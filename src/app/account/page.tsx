@@ -16,6 +16,7 @@ import {
   type Project,
 } from "@/lib/projects";
 import { engagementScore } from "@/lib/gauge";
+import { AvatarUpload } from "@/components/avatar-upload";
 import { ProfileForm } from "@/components/profile-form";
 import { AccountTabs } from "./account-tabs";
 
@@ -23,6 +24,17 @@ export const metadata: Metadata = {
   title: "Account — GDG Babcock Showcase",
   description: "Your profile, the projects you've shipped, and what you've liked.",
 };
+
+// Three buckets: unfinished, waiting for its release time, and on the board.
+function split(shipped: Project[]) {
+  const now = Date.now();
+  const pending = (p: Project) => p.releaseAt.getTime() > now;
+  return {
+    drafts: shipped.filter((p) => p.draft),
+    scheduled: shipped.filter((p) => !p.draft && pending(p)),
+    live: shipped.filter((p) => !p.draft && !pending(p)),
+  };
+}
 
 function EmptyState({ text, href, cta }: { text: string; href: string; cta: string }) {
   return (
@@ -48,7 +60,9 @@ export default async function AccountPage() {
     getBookmarkedProjectIds(user.id),
   ]);
 
-  const totals = shipped.reduce(
+  const { drafts, scheduled, live } = split(shipped);
+
+  const totals = live.reduce(
     (acc, p) => ({
       views: acc.views + p.views,
       clicks: acc.clicks + p.clicks,
@@ -83,25 +97,7 @@ export default async function AccountPage() {
           </p>
 
           <div className="mt-6 flex flex-wrap items-center gap-5">
-            {user.image ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={user.image}
-                alt=""
-                className="h-16 w-16 shrink-0 rounded-full border border-border object-cover"
-              />
-            ) : (
-              <span
-                className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full font-display text-2xl font-semibold text-white"
-                style={{
-                  background:
-                    "linear-gradient(135deg, var(--color-blue), var(--color-green))",
-                }}
-                aria-hidden
-              >
-                {user.name[0]}
-              </span>
-            )}
+            <AvatarUpload name={user.name} image={user.image ?? null} />
             <div className="min-w-0">
               <h1 className="font-display text-3xl font-bold tracking-tight sm:text-4xl">
                 {user.name}
@@ -127,6 +123,8 @@ export default async function AccountPage() {
           <p className="eyebrow">Your details</p>
           <ProfileForm
             name={user.name}
+            username={user.username ?? ""}
+            bio={user.bio ?? ""}
             email={user.email}
             department={user.department ?? null}
             level={user.level ?? null}
@@ -156,19 +154,25 @@ export default async function AccountPage() {
         <AccountTabs
           counts={{ shipped: shipped.length, liked: liked.length, saved: saved.length }}
           shipped={
-            <ProjectList
-              projects={shipped}
-              likedIds={likedIds}
-              savedIds={savedIds}
-              owned
-              empty={
-                <EmptyState
-                  text="You haven't shipped anything yet."
-                  href="/submit"
-                  cta="Put a project on the board →"
-                />
-              }
-            />
+            <>
+              <DraftList drafts={drafts} />
+              <PendingList projects={scheduled} />
+              <ProjectList
+                projects={live}
+                likedIds={likedIds}
+                savedIds={savedIds}
+                owned
+                empty={
+                  drafts.length + scheduled.length > 0 ? null : (
+                    <EmptyState
+                      text="You haven't shipped anything yet."
+                      href="/submit"
+                      cta="Put a project on the board →"
+                    />
+                  )
+                }
+              />
+            </>
           }
           liked={
             <ProjectList
@@ -202,6 +206,66 @@ export default async function AccountPage() {
       </main>
       <Footer />
     </>
+  );
+}
+
+// Published but not yet released — same shape as the draft list, different
+// reason for being invisible.
+function PendingList({ projects }: { projects: Project[] }) {
+  if (projects.length === 0) return null;
+
+  return (
+    <div className="mt-4 rounded-2xl border border-blue/30 bg-blue/5 p-4">
+      <p className="font-mono text-[10px] uppercase tracking-wider text-blue">
+        {projects.length} scheduled — {projects.length === 1 ? "it goes" : "they go"} live automatically
+      </p>
+      <ul className="mt-2">
+        {projects.map((p) => (
+          <li key={p.id} className="border-t border-blue/20 py-2 first:border-t-0">
+            <Link
+              href={`/project/${p.id}/edit`}
+              className="flex items-baseline justify-between gap-4 text-sm hover:text-blue"
+            >
+              <span className="truncate">{p.title}</span>
+              <time
+                dateTime={p.releaseAt.toISOString()}
+                suppressHydrationWarning
+                className="shrink-0 font-mono text-[10px] uppercase tracking-wider text-muted"
+              >
+                {p.releaseAt.toLocaleString()}
+              </time>
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function DraftList({ drafts }: { drafts: Project[] }) {
+  if (drafts.length === 0) return null;
+
+  return (
+    <div className="mt-4 rounded-2xl border border-yellow/30 bg-yellow/5 p-4">
+      <p className="font-mono text-[10px] uppercase tracking-wider text-yellow">
+        {drafts.length} draft{drafts.length === 1 ? "" : "s"} — only you can see these
+      </p>
+      <ul className="mt-2">
+        {drafts.map((p) => (
+          <li key={p.id} className="border-t border-yellow/20 py-2 first:border-t-0">
+            <Link
+              href={`/project/${p.id}/edit`}
+              className="flex items-baseline justify-between gap-4 text-sm hover:text-blue"
+            >
+              <span className="truncate">{p.title}</span>
+              <span className="shrink-0 font-mono text-[10px] uppercase tracking-wider text-muted">
+                Finish it →
+              </span>
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 

@@ -1,14 +1,20 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { LuX } from "react-icons/lu";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { signIn, signUp } from "@/lib/auth-client";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { DEPARTMENTS, LEVELS } from "@/lib/departments";
+import { slugify, USERNAME_MAX, USERNAME_MIN } from "@/lib/username";
 import { OPEN_AUTH_MODAL_EVENT } from "@/lib/require-auth";
 
+// The department and level selects stay native; this keeps them looking like
+// the Input component.
 const inputClass =
   "w-full rounded-xl border border-border bg-bg px-3.5 py-2.5 text-sm text-fg outline-none transition-colors placeholder:text-muted focus:border-blue";
-const labelClass = "block font-mono text-[10px] uppercase tracking-wider text-muted";
 const errClass = "mt-1 font-mono text-[11px] text-red";
 
 export function AuthModal() {
@@ -19,6 +25,7 @@ export function AuthModal() {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [name, setName] = useState("");
+  const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [department, setDepartment] = useState("");
@@ -53,6 +60,7 @@ export function AuthModal() {
   function reset() {
     setMode("signin");
     setName("");
+    setUsername("");
     setEmail("");
     setPassword("");
     setDepartment("");
@@ -68,7 +76,7 @@ export function AuthModal() {
     const { error } =
       mode === "signin"
         ? await signIn.email({ email, password })
-        : await signUp.email({ name, email, password, department, level });
+        : await signUp.email({ name, username, email, password, department, level });
     setPending(false);
     if (error) {
       setError(error.message ?? "Something went wrong.");
@@ -107,31 +115,48 @@ export function AuthModal() {
             {mode === "signin" ? "Sign in" : "Create an account"}
           </h2>
         </div>
-        <button
+        <Button
           type="button"
+          variant="ghost"
+          size="icon"
           onClick={() => dialogRef.current?.close()}
           aria-label="Close"
-          className="shrink-0 rounded-full p-1 text-muted transition-colors hover:text-fg"
         >
-          ✕
-        </button>
+          <LuX size={16} aria-hidden />
+        </Button>
       </div>
 
       <form onSubmit={onSubmit} className="mt-7 flex flex-col gap-4">
         {mode === "signup" && (
           <>
             <div>
-              <label htmlFor="modal-name" className={labelClass}>Name</label>
-              <input
+              <Label htmlFor="modal-name">Name</Label>
+              <Input
                 id="modal-name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
-                className={`mt-2 ${inputClass}`}
+                className="mt-2"
               />
             </div>
             <div>
-              <label htmlFor="modal-department" className={labelClass}>Department</label>
+              <Label htmlFor="modal-username">Username</Label>
+              <Input
+                id="modal-username"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                required
+                minLength={USERNAME_MIN}
+                maxLength={USERNAME_MAX}
+                placeholder="jdoe23"
+                className="mt-2"
+              />
+              <p className="mt-1 font-mono text-[10px] uppercase tracking-wider text-muted">
+                Your profile lives at /u/{slugify(username) || "your-handle"}
+              </p>
+            </div>
+            <div>
+              <Label htmlFor="modal-department">Department</Label>
               <select
                 id="modal-department"
                 value={department}
@@ -146,7 +171,7 @@ export function AuthModal() {
               </select>
             </div>
             <div>
-              <label htmlFor="modal-level" className={labelClass}>Level</label>
+              <Label htmlFor="modal-level">Level</Label>
               <select
                 id="modal-level"
                 value={level}
@@ -163,36 +188,32 @@ export function AuthModal() {
           </>
         )}
         <div>
-          <label htmlFor="modal-email" className={labelClass}>Email</label>
-          <input
+          <Label htmlFor="modal-email">Email</Label>
+          <Input
             id="modal-email"
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
-            className={`mt-2 ${inputClass}`}
+            className="mt-2"
           />
         </div>
         <div>
-          <label htmlFor="modal-password" className={labelClass}>Password</label>
-          <input
+          <Label htmlFor="modal-password">Password</Label>
+          <Input
             id="modal-password"
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
             minLength={8}
-            className={`mt-2 ${inputClass}`}
+            className="mt-2"
           />
         </div>
         {error && <p className={errClass}>{error}</p>}
-        <button
-          type="submit"
-          disabled={pending}
-          className="mt-1 inline-flex w-full items-center justify-center rounded-full bg-blue px-4 py-2.5 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
-        >
+        <Button type="submit" size="lg" disabled={pending} className="mt-1 w-full">
           {mode === "signin" ? "Sign in" : "Sign up"}
-        </button>
+        </Button>
       </form>
 
       <div className="mt-4 flex items-center gap-3 text-muted">
@@ -201,29 +222,33 @@ export function AuthModal() {
         <span className="h-px flex-1 bg-border" />
       </div>
 
-      <button
+      <Button
         type="button"
+        variant="outline"
+        size="lg"
         onClick={() =>
           signIn.social({
             provider: "google",
             callbackURL: redirectTo.current ?? pathname,
           })
         }
-        className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full border border-border px-4 py-2.5 text-sm font-medium text-fg transition-colors hover:border-blue/60"
+        className="mt-4 w-full"
       >
         Continue with Google
-      </button>
+      </Button>
 
-      <button
+      <Button
         type="button"
+        variant="ghost"
+        size="none"
         onClick={() => {
           setError(null);
           setMode(mode === "signin" ? "signup" : "signin");
         }}
-        className="mt-6 text-sm text-muted hover:text-fg"
+        className="mt-6 text-sm"
       >
         {mode === "signin" ? "Need an account? Sign up" : "Already have an account? Sign in"}
-      </button>
+      </Button>
     </dialog>
   );
 }
