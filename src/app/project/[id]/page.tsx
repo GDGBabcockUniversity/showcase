@@ -5,7 +5,6 @@ import { after } from "next/server";
 import { notFound } from "next/navigation";
 import { Nav } from "@/components/nav";
 import { Footer } from "@/components/footer";
-import { PublishedStamp } from "@/components/dots";
 import { UpvoteButton } from "@/components/upvote-button";
 import { CommentForm } from "@/components/comment-form";
 import { MediaSlider } from "@/components/media-slider";

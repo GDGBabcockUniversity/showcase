@@ -5,7 +5,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { after } from "next/server";
-import { and, desc, eq, ilike, inArray, ne } from "drizzle-orm";
+import { and, eq, ilike, inArray, ne } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { db } from "@/db";
 import { bookmark, click, comment, like, project, user } from "@/db/schema";
@@ -23,7 +23,6 @@ import {
   TITLE_MAX,
   TITLE_MIN,
 } from "@/lib/limits";
-import { Project } from "@/lib/projects";
 
 async function requireSession() {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -375,25 +374,4 @@ export async function deleteProject(projectId: string) {
 
   revalidatePath("/", "layout");
   redirect("/account");
-}
-
-export async function getGroupProjects(): Promise<
-  {
-    label: string;
-    items: Project[]
-  }> {
-  const projects = await db
-    .select()
-    .from(project)
-    .orderBy(desc(project.releaseAt));
-
-  const groups = new Map<string, Project[]>();
-  for (const project of projects) {
-    
-    const label = project.releaseAt.toISOString().slice(0, 10)
-    const list = groups.get(label);
-    if (list) list.push(project);
-    else groups.set(label, [project]);
-  }
-  return [...groups].map(([label, items]) => ({ label, items }));
 }

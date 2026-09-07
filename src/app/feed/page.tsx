@@ -228,7 +228,7 @@ export default async function FeedPage({
               <p className="mt-2 font-display text-base font-semibold">
                 Ship your project?
               </p>
-              <p className="mt-1 text-sm text-muted">Put it on tomorrow's board.</p>
+              <p className="mt-1 text-sm text-muted">Put it on tomorrow&apos;s board.</p>
               <Link
                 href="/submit"
                 className="mt-4 inline-flex w-full items-center justify-center rounded-full bg-blue px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90"
@@ -249,7 +249,7 @@ export default async function FeedPage({
                 </h2>
               </div>
               <Link href="/this-month" className="text-xs text-blue hover:underline">
-                This month's picks →
+                This month&apos;s picks →
               </Link>
             </div>
             {lastTopThree.map((p, i) => (

@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { DEPARTMENTS, LEVELS } from "@/lib/departments";
 import { BIO_MAX } from "@/lib/limits";
-import { slugify, USERNAME_MAX, USERNAME_MIN } from "@/lib/username";
+import { USERNAME_MAX, USERNAME_MIN } from "@/lib/username";
 import { useSession } from "@/lib/auth-client";
 
 // The two selects stay native — `inputClass` keeps them looking like the
