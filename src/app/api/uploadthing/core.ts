@@ -25,7 +25,19 @@ export const uploadRouter = {
       return { uploadedBy: metadata.userId, url: file.ufsUrl };
     }),
 
-  projectMedia: f({ image: { ...IMAGE, maxFileCount: MAX_EXTRA_MEDIA } })
+  // Smaller cap than project images — it's only ever shown at 64px.
+  avatar: f({ image: { maxFileSize: "2MB", maxFileCount: 1 } })
+    .middleware(requireUploader)
+    .onUploadComplete(({ metadata, file }) => {
+      return { uploadedBy: metadata.userId, url: file.ufsUrl };
+    }),
+
+  // Extra media can be a clip as well as a still. Videos get a bigger cap —
+  // even a short screen recording dwarfs a screenshot.
+  projectMedia: f({
+    image: { ...IMAGE, maxFileCount: MAX_EXTRA_MEDIA },
+    video: { maxFileSize: "32MB", maxFileCount: MAX_EXTRA_MEDIA },
+  })
     .middleware(requireUploader)
     .onUploadComplete(({ metadata, file }) => {
       return { uploadedBy: metadata.userId, url: file.ufsUrl };

@@ -46,12 +46,18 @@ export default async function EditProjectPage({
           Edit project
         </p>
 
-        <h1 className="mt-8 font-display text-3xl font-bold tracking-tight">
+        <h1 className="mt-8 flex flex-wrap items-center gap-3 font-display text-3xl font-bold tracking-tight">
           {owned.title}
+          {owned.draft && (
+            <span className="rounded-full border border-yellow/40 bg-yellow/10 px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider text-yellow">
+              Draft
+            </span>
+          )}
         </h1>
         <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted">
-          Changes go live immediately. The cover and extra media are set at
-          submission and can&apos;t be swapped here yet.
+          {owned.draft
+            ? "This is a draft — nobody else can see it until you publish. Save as often as you like."
+            : "Changes go live immediately, images included."}
         </p>
 
         <div className="mt-8">
@@ -60,9 +66,15 @@ export default async function EditProjectPage({
               id: owned.id,
               title: owned.title,
               summary: owned.summary,
-              department: owned.department,
               type: owned.type,
               url: owned.url,
+              cover: owned.cover,
+              media: owned.media,
+              draft: owned.draft,
+              // Past release times aren't a schedule any more — leave the
+              // picker empty rather than showing the filing date.
+              releaseAt:
+                owned.releaseAt > new Date() ? owned.releaseAt.toISOString() : null,
             }}
             collaborators={collaborators}
           />

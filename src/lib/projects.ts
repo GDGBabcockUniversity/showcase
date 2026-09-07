@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { and, count, desc, eq, gte } from "drizzle-orm";
+import { and, count, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
 import type { PgTable } from "drizzle-orm/pg-core";
 import { db } from "@/db";
 import { bookmark, click, comment, like, project, user, view } from "@/db/schema";
@@ -16,6 +16,11 @@ export type Project = {
   department: string;
   type: ProjectType;
   url: string;
+  cover: string | null;
+  media: string[];
+  draft: boolean;
+  releaseAt: Date;
+  createdAt: Date;
 } & Interactions;
 
 export const LAST_MONTH_LABEL = "Last month";
@@ -25,9 +30,16 @@ const projectColumns = {
   ownerId: project.userId,
   title: project.title,
   summary: project.summary,
-  department: project.department,
+  // The maker's own department, set at registration. Coalesced so every
+  // display site can keep treating it as a plain string.
+  department: sql<string>`coalesce(${user.department}, 'Unfiled')`,
   type: project.type,
   url: project.url,
+  cover: project.cover,
+  media: project.media,
+  draft: project.draft,
+  releaseAt: project.releaseAt,
+  createdAt: project.createdAt,
   by: user.name,
 };
 
@@ -39,6 +51,11 @@ type ProjectRow = {
   department: string;
   type: string;
   url: string;
+  cover: string | null;
+  media: string[];
+  draft: boolean;
+  releaseAt: Date;
+  createdAt: Date;
   by: string;
 };
 
@@ -79,11 +96,18 @@ async function attachCounts(rows: ProjectRow[]): Promise<Project[]> {
   }));
 }
 
+// Every public read goes through this: drafts belong to their owner only, and
+// a scheduled project stays hidden until its release time has passed. Called
+// per query so `now` is the request's, not the module's.
+const published = () =>
+  and(eq(project.draft, false), lte(project.releaseAt, new Date()));
+
 export async function getAllProjects(): Promise<Project[]> {
   const rows = await db
     .select(projectColumns)
     .from(project)
-    .innerJoin(user, eq(project.userId, user.id));
+    .innerJoin(user, eq(project.userId, user.id))
+    .where(published());
   return attachCounts(rows);
 }
 
@@ -92,7 +116,7 @@ export async function getProjectById(id: string): Promise<Project | undefined> {
     .select(projectColumns)
     .from(project)
     .innerJoin(user, eq(project.userId, user.id))
-    .where(eq(project.id, id));
+    .where(and(eq(project.id, id), published()));
 
   const row = rows[0];
   if (!row) return undefined;
@@ -114,6 +138,45 @@ export async function getTopThreeProjects(): Promise<Project[]> {
     .slice(0, 3);
 }
 
+// Owner first, then whoever they credited. Used by the project page to link
+// each maker to their profile.
+export async function getProjectMakers(projectId: string) {
+  const rows = await db
+    .select({ userId: project.userId, collaborators: project.collaborators })
+    .from(project)
+    .where(eq(project.id, projectId));
+  const row = rows[0];
+  if (!row) return [];
+
+  const ids = [row.userId, ...row.collaborators.filter((id) => id !== row.userId)];
+  const people = await db
+    .select({
+      id: user.id,
+      username: user.username,
+      name: user.name,
+      image: user.image,
+      department: user.department,
+    })
+    .from(user)
+    .where(inArray(user.id, ids));
+
+  // Ordered by `ids` so the owner stays first whatever the database returns.
+  return ids
+    .map((id) => people.find((u) => u.id === id))
+    .filter((u) => !!u)
+    .map((u, i) => ({ ...u, owner: i === 0 }));
+}
+
+// A profile only shows what's actually on the board.
+export async function getPublicProjectsByUser(userId: string): Promise<Project[]> {
+  const rows = await db
+    .select(projectColumns)
+    .from(project)
+    .innerJoin(user, eq(project.userId, user.id))
+    .where(and(eq(project.userId, userId), published()));
+  return attachCounts(rows);
+}
+
 export async function getProjectsByUser(userId: string): Promise<Project[]> {
   const rows = await db
     .select(projectColumns)
@@ -129,7 +192,7 @@ export async function getLikedProjects(userId: string): Promise<Project[]> {
     .from(project)
     .innerJoin(user, eq(project.userId, user.id))
     .innerJoin(like, eq(like.projectId, project.id))
-    .where(eq(like.userId, userId))
+    .where(and(eq(like.userId, userId), published()))
     .orderBy(desc(like.createdAt));
   return attachCounts(rows);
 }
@@ -159,7 +222,7 @@ export async function getTopMakers(limit = 5): Promise<Maker[]> {
     })
     .from(project)
     .innerJoin(user, eq(project.userId, user.id))
-    .where(gte(project.createdAt, since));
+    .where(and(gte(project.createdAt, since), published()));
 
   if (rows.length === 0) return [];
 
@@ -209,7 +272,7 @@ export async function getBookmarkedProjects(userId: string): Promise<Project[]> 
     .from(project)
     .innerJoin(user, eq(project.userId, user.id))
     .innerJoin(bookmark, eq(bookmark.projectId, project.id))
-    .where(eq(bookmark.userId, userId))
+    .where(and(eq(bookmark.userId, userId), published()))
     .orderBy(desc(bookmark.createdAt));
   return attachCounts(rows);
 }

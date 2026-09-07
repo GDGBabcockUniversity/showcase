@@ -5,12 +5,13 @@ import { randomUUID } from "node:crypto";
 import { Nav } from "@/components/nav";
 import { Footer } from "@/components/footer";
 import { Dots } from "@/components/dots";
-import { DEPARTMENTS, PROJECT_TYPES } from "@/lib/departments";
+import { PROJECT_TYPES } from "@/lib/departments";
 import { auth } from "@/lib/auth";
 import { inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { project, user } from "@/db/schema";
 import {
+  isUploadUrl,
   MAX_COLLABORATORS,
   MAX_EXTRA_MEDIA,
   SUMMARY_MAX,
@@ -25,14 +26,6 @@ export const metadata: Metadata = {
   description: "Put your project on the board. Every submission is reviewed.",
 };
 
-// Only accept URLs on UploadThing's own hosts, so a crafted form can't point
-// the cover at somewhere arbitrary.
-const UPLOAD_HOSTS = /^https:\/\/[a-z0-9-]+\.ufs\.sh\/|^https:\/\/utfs\.io\//;
-
-function isUploadUrl(value: string) {
-  return UPLOAD_HOSTS.test(value);
-}
-
 async function submitProject(_: SubmitState, formData: FormData): Promise<SubmitState> {
   "use server";
 
@@ -41,9 +34,12 @@ async function submitProject(_: SubmitState, formData: FormData): Promise<Submit
     redirect("/?authModal=1&redirect=/submit");
   }
 
+  // Draft saves keep whatever's filled in so far — the only hard requirement
+  // is a title to recognise it by. Everything else is checked on publish.
+  const draft = formData.get("intent") === "draft";
+
   const title = String(formData.get("title") ?? "").trim();
   const summary = String(formData.get("summary") ?? "").trim();
-  const department = String(formData.get("department") ?? "");
   const type = String(formData.get("type") ?? "");
   const url = String(formData.get("url") ?? "").trim();
   // The picker submits user ids, one hidden input each.
@@ -55,14 +51,47 @@ async function submitProject(_: SubmitState, formData: FormData): Promise<Submit
   // UploadThing URLs, posted by the drop zones — the bytes never touch this action.
   const cover = String(formData.get("cover") ?? "").trim();
   const media = formData.getAll("media").map(String).filter(Boolean);
+  // Posted as an ISO string by the form, so the schedule means the same
+  // instant whatever timezone the server happens to run in.
+  const scheduled = String(formData.get("releaseAt") ?? "").trim();
+  const parsed = scheduled ? new Date(scheduled) : null;
+  const badSchedule = !!parsed && Number.isNaN(parsed.getTime());
+  // A time that's already passed just means "now".
+  const releaseAt = parsed && !badSchedule && parsed > new Date() ? parsed : null;
 
   const errors: SubmitState["errors"] = {};
+  if (draft) {
+    if (title.length < TITLE_MIN) {
+      return {
+        ok: false,
+        errors: { title: "A draft still needs a name." },
+        message: "Give the draft a title first.",
+      };
+    }
+    const id = randomUUID();
+    await db.insert(project).values({
+      id,
+      userId: session.user.id,
+      // Sliced rather than rejected: a draft never bounces on length, and the
+      // varchar limits would throw. Unknown upload hosts are dropped outright.
+      title: title.slice(0, TITLE_MAX),
+      summary: summary.slice(0, SUMMARY_MAX),
+      type: (PROJECT_TYPES as readonly string[]).includes(type) ? type : "",
+      url,
+      collaborators: collaboratorIds.slice(0, MAX_COLLABORATORS),
+      cover: isUploadUrl(cover) ? cover : null,
+      media: media.filter(isUploadUrl).slice(0, MAX_EXTRA_MEDIA),
+      draft: true,
+      releaseAt: releaseAt ?? undefined,
+    });
+    redirect(`/project/${id}/edit`);
+  }
+
   if (title.length < TITLE_MIN) errors.title = "Give it a real name.";
   if (title.length > TITLE_MAX) errors.title = `Under ${TITLE_MAX} characters.`;
   if (summary.length < SUMMARY_MIN)
     errors.summary = `One full sentence, at least ${SUMMARY_MIN} characters.`;
   if (summary.length > SUMMARY_MAX) errors.summary = `Under ${SUMMARY_MAX} characters.`;
-  if (!(DEPARTMENTS as readonly string[]).includes(department)) errors.department = "Pick a department.";
   if (!(PROJECT_TYPES as readonly string[]).includes(type)) errors.type = "Pick a type.";
   if (url) {
     try {
@@ -96,6 +125,8 @@ async function submitProject(_: SubmitState, formData: FormData): Promise<Submit
     errors.cover = "That cover didn't upload properly — try again.";
   }
 
+  if (badSchedule) errors.releaseAt = "That release time isn't valid.";
+
   if (media.length > MAX_EXTRA_MEDIA) {
     errors.media = `Up to ${MAX_EXTRA_MEDIA} extra images.`;
   } else if (media.some((u) => !isUploadUrl(u))) {
@@ -111,21 +142,21 @@ async function submitProject(_: SubmitState, formData: FormData): Promise<Submit
     userId: session.user.id,
     title,
     summary,
-    department,
     type,
     url: url || "",
     collaborators: collaborators.map((c) => c.id),
     cover,
     media,
+    releaseAt: releaseAt ?? undefined,
   });
 
   return {
     ok: true,
     receipt: {
       title,
-      department,
       collaborators: collaborators.map((c) => c.name),
       media: 1 + media.length,
+      releaseAt: releaseAt?.toISOString() ?? null,
     },
   };
 }
