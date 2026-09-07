@@ -14,12 +14,9 @@ export const auth = betterAuth({
   },
   user: {
     additionalFields: {
-      // Optional so Google sign-ins, which skip the sign-up form, still work.
       bio: { type: "string", required: false, input: true },
       department: { type: "string", required: false, input: true },
       level: { type: "string", required: false, input: true },
-      // Accepted from the sign-up form, but never trusted as-is: the hook
-      // below slugifies it and resolves collisions.
       username: { type: "string", required: false, input: true },
     },
   },

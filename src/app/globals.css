@@ -126,3 +126,14 @@ select:focus-visible {
 [data-slot="dialog-content"][data-state="open"] {
   animation: dialog-zoom-in 150ms ease-out;
 }
+
+/* Confetti with motion turned off. The global reduce-motion rule above clamps
+   every animation to 0.01ms and one iteration, which parks each piece on the
+   last keyframe — 105vh down, i.e. off-screen. Scatter them instead. */
+@media (prefers-reduced-motion: reduce) {
+  [data-slot="confetti-piece"] {
+    animation: none !important;
+    opacity: 0.85;
+    transform: translate3d(var(--drift, 0), var(--rest, 40vh), 0);
+  }
+}
