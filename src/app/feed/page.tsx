@@ -20,6 +20,7 @@ import {
   TYPE_LABEL,
   type ProjectType,
 } from "@/lib/departments";
+import { TAGS, TAG_LABEL, type Tag } from "@/lib/tags";
 import { ENGAGEMENT_WEIGHTS, engagementScore } from "@/lib/gauge";
 import { relativeDate } from "@/lib/when";
 
@@ -29,7 +30,7 @@ export const metadata: Metadata = {
     "Every student project on the board, ranked by real community interaction.",
 };
 
-type Search = { type?: string; dept?: string; q?: string };
+type Search = { type?: string; dept?: string; tag?: string };
 type Department = (typeof DEPARTMENTS)[number];
 
 function isType(v: string | undefined): v is ProjectType {
@@ -37,6 +38,9 @@ function isType(v: string | undefined): v is ProjectType {
 }
 function isDept(v: string | undefined): v is Department {
   return !!v && (DEPARTMENTS as readonly string[]).includes(v);
+}
+function isTag(v: string | undefined): v is Tag {
+  return !!v && (TAGS as readonly string[]).includes(v);
 }
 
 const chipClass = (active: boolean) =>
@@ -54,7 +58,7 @@ export default async function FeedPage({
   const sp = await searchParams;
   const typeFilter = isType(sp.type) ? sp.type : undefined;
   const deptFilter = isDept(sp.dept) ? sp.dept : undefined;
-  const query = sp.q?.trim().toLowerCase();
+  const tagFilter = isTag(sp.tag) ? sp.tag : undefined;
 
   const session = await auth.api.getSession({ headers: await headers() });
   const [projects, likedIds, savedIds] = await Promise.all([
@@ -65,12 +69,7 @@ export default async function FeedPage({
   const filtered = projects
     .filter((p) => !typeFilter || p.type === typeFilter)
     .filter((p) => !deptFilter || p.department === deptFilter)
-    .filter(
-      (p) =>
-        !query ||
-        p.title.toLowerCase().includes(query) ||
-        p.summary.toLowerCase().includes(query),
-    );
+    .filter((p) => !tagFilter || p.tags.includes(tagFilter));
 
   const lastTopThree = await getTopThreeProjects()
   const ranked = [...filtered].sort(
@@ -93,11 +92,11 @@ export default async function FeedPage({
   const trending = ranked.slice(0, 5);
 
   const hrefFor = (next: Partial<Search>) => {
-    const merged = { type: typeFilter, dept: deptFilter, q: sp.q, ...next };
+    const merged = { type: typeFilter, dept: deptFilter, tag: tagFilter, ...next };
     const params = new URLSearchParams();
     if (merged.type) params.set("type", merged.type);
     if (merged.dept) params.set("dept", merged.dept);
-    if (merged.q) params.set("q", merged.q);
+    if (merged.tag) params.set("tag", merged.tag);
     const qs = params.toString();
     return qs ? `/feed?${qs}` : "/feed";
   };
@@ -105,7 +104,7 @@ export default async function FeedPage({
   return (
     <>
       <Nav />
-      <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-10">
+      <main className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 sm:py-10">
         <section className="flex flex-col gap-6 border-b border-border pb-8 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="eyebrow flex items-center gap-3">
@@ -138,6 +137,20 @@ export default async function FeedPage({
             ))}
           </div>
           <DepartmentSelect current={deptFilter} />
+        </div>
+
+        <div className="mt-4 flex flex-wrap items-center gap-2 border-b border-border pb-6">
+          <span className="pr-1 font-mono text-[10px] uppercase tracking-wider text-muted">
+            Topics
+          </span>
+          <Link href={hrefFor({ tag: undefined })} className={chipClass(!tagFilter)}>
+            All
+          </Link>
+          {TAGS.map((t) => (
+            <Link key={t} href={hrefFor({ tag: t })} className={chipClass(tagFilter === t)}>
+              {TAG_LABEL[t]}
+            </Link>
+          ))}
         </div>
 
         <div className="mt-8 grid gap-10 lg:grid-cols-[minmax(0,1fr)_280px]">
@@ -239,7 +252,7 @@ export default async function FeedPage({
           </aside>
         </div>
 
-        {!typeFilter && !deptFilter && lastTopThree.length > 0 ? (
+        {!typeFilter && !deptFilter && !tagFilter && lastTopThree.length > 0 ? (
           <section className="mt-12">
             <div className="flex items-baseline justify-between border-b border-border pb-3">
               <div>
