@@ -28,7 +28,7 @@ export default async function Home() {
   return (
     <>
       <Nav />
-      <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-10">
+      <main className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 sm:py-10">
         <section className="flex flex-col gap-6 border-b border-border pb-8 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="eyebrow flex items-center gap-3">
@@ -44,12 +44,6 @@ export default async function Home() {
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Link
-              href="/submit"
-              className="inline-flex items-center gap-2 rounded-full bg-blue px-5 py-2.5 text-sm font-medium text-white transition-transform hover:-translate-y-0.5"
-            >
-              Submit a project
-            </Link>
             <Link
               href="/feed"
               className="inline-flex items-center gap-2 rounded-full border border-border px-5 py-2.5 text-sm text-fg hover:bg-surface"

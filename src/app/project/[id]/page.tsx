@@ -24,6 +24,7 @@ import {
 import { auth } from "@/lib/auth";
 import { actorKey } from "@/lib/actor";
 import { TYPE_LABEL } from "@/lib/departments";
+import { TAG_LABEL, type Tag } from "@/lib/tags";
 import { coverGradient } from "@/lib/cover";
 import { engagementScore, type Interactions } from "@/lib/gauge";
 
@@ -134,7 +135,7 @@ export default async function ProjectPage({
   return (
     <>
       <Nav />
-      <main className="mx-auto max-w-6xl px-5 py-10 sm:py-14">
+      <main className="mx-auto w-full max-w-6xl px-5 py-10 sm:py-14">
 
         {/* Header row */}
         <header className="mt-8 grid gap-8 border-b border-border pb-8 sm:grid-cols-[1fr_auto] sm:items-start">
@@ -416,6 +417,16 @@ export default async function ProjectPage({
                 {[
                   { label: "Department", value: p.department },
                   { label: "Type", value: TYPE_LABEL[p.type] },
+                  ...(p.tags.length > 0
+                    ? [
+                        {
+                          label: "Topics",
+                          value: p.tags
+                            .map((t) => TAG_LABEL[t as Tag] ?? t)
+                            .join(", "),
+                        },
+                      ]
+                    : []),
                 ].map((row) => (
                   <div
                     key={row.label}
@@ -429,21 +440,6 @@ export default async function ProjectPage({
                 ))}
               </div>
             </dl>
-
-            {/* Rubric note */}
-            <div className="rounded-2xl border border-blue/25 bg-blue/5 p-6">
-              <p className="eyebrow text-blue/90">Reviewed</p>
-              <p className="mt-3 text-sm leading-relaxed text-muted">
-                Read end-to-end by a GDG reviewer against the campus rubric
-                before it went live. Rejected drafts never appear on the board.
-              </p>
-              <Link
-                href="/#rubric"
-                className="mt-4 inline-flex items-center gap-1 font-mono text-[11px] uppercase tracking-wider text-blue hover:underline"
-              >
-                See the rubric →
-              </Link>
-            </div>
           </aside>
         </div>
       </main>

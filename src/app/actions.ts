@@ -11,6 +11,7 @@ import { db } from "@/db";
 import { bookmark, click, comment, like, project, user } from "@/db/schema";
 import { actorKey } from "@/lib/actor";
 import { DEPARTMENTS, LEVELS, PROJECT_TYPES } from "@/lib/departments";
+import { MAX_TAGS, TAGS } from "@/lib/tags";
 import { slugify, USERNAME_MIN } from "@/lib/username";
 import { usernameTaken } from "@/lib/username-db";
 import {
@@ -210,6 +211,7 @@ export type EditState = {
       | "title"
       | "summary"
       | "type"
+      | "tags"
       | "url"
       | "collaborators"
       | "cover"
@@ -232,6 +234,9 @@ export async function updateProject(
   const title = String(formData.get("title") ?? "").trim();
   const summary = String(formData.get("summary") ?? "").trim();
   const type = String(formData.get("type") ?? "");
+  const tags = [...new Set(formData.getAll("tags").map(String))].filter((t) =>
+    (TAGS as readonly string[]).includes(t),
+  );
   const url = String(formData.get("url") ?? "").trim();
   const collaboratorIds = [
     ...new Set(formData.getAll("collaborators").map(String).filter(Boolean)),
@@ -264,6 +269,7 @@ export async function updateProject(
         title: title.slice(0, TITLE_MAX),
         summary: summary.slice(0, SUMMARY_MAX),
         type: (PROJECT_TYPES as readonly string[]).includes(type) ? type : "",
+        tags: tags.slice(0, MAX_TAGS),
         url,
         collaborators: collaboratorIds.slice(0, MAX_COLLABORATORS),
         cover: isUploadUrl(postedCover) ? postedCover : null,
@@ -289,6 +295,7 @@ export async function updateProject(
     errors.summary = `Under ${SUMMARY_MAX} characters.`;
   if (!(PROJECT_TYPES as readonly string[]).includes(type))
     errors.type = "Pick a type.";
+  if (tags.length > MAX_TAGS) errors.tags = `Up to ${MAX_TAGS} topics.`;
   if (url) {
     try {
       const u = new URL(url);
@@ -337,6 +344,7 @@ export async function updateProject(
       title,
       summary,
       type,
+      tags,
       url: url || "",
       collaborators,
       cover: postedCover,

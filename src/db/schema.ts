@@ -66,6 +66,9 @@ export const project = pgTable("project", {
   title: varchar("title", { length: TITLE_MAX }).notNull(),
   summary: varchar("summary", { length: SUMMARY_MAX }).notNull(),
   type: text("type").notNull(),
+  // Topic vocabulary from src/lib/tags.ts — what the project is about, up to
+  // MAX_TAGS of them. Same jsonb treatment as collaborators/media.
+  tags: jsonb("tags").$type<string[]>().notNull().default([]),
   url: text("url").notNull(),
   collaborators: jsonb("collaborators").$type<string[]>().notNull().default([]),
   cover: text("cover"),

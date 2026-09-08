@@ -16,7 +16,7 @@ export function SearchBox() {
 
   // Live-filtering only makes sense where the results are. Elsewhere this sits
   // in the nav, so auto-navigating would drag the reader off their page.
-  const onFeed = pathname === "/feed";
+  const onSearch = pathname === "/search";
   const urlQuery = searchParams.get("q") ?? "";
 
   const [value, setValue] = useState(urlQuery);
@@ -37,23 +37,20 @@ export function SearchBox() {
     [],
   );
 
-  function push(next: string, keepFilters: boolean) {
-    // Off the feed, start clean: the current page's params (authModal, and so
-    // on) have no business being carried onto the board.
-    const params = new URLSearchParams(
-      keepFilters ? searchParams.toString() : "",
-    );
+  function push(next: string) {
+    // The search page takes no other params, so the query is the whole URL —
+    // nothing from the page being left (authModal, and so on) comes along.
+    const params = new URLSearchParams();
     if (next) params.set("q", next);
-    else params.delete("q");
     const qs = params.toString();
-    router.push(qs ? `/feed?${qs}` : "/feed");
+    router.push(qs ? `/search?${qs}` : "/search");
   }
 
   function onChange(next: string) {
     setValue(next);
-    if (!onFeed) return;
+    if (!onSearch) return;
     if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => push(next, true), DEBOUNCE_MS);
+    timer.current = setTimeout(() => push(next), DEBOUNCE_MS);
   }
 
   return (
@@ -62,12 +59,12 @@ export function SearchBox() {
       onSubmit={(e) => {
         e.preventDefault();
         if (timer.current) clearTimeout(timer.current);
-        push(value.trim(), onFeed);
+        push(value.trim());
       }}
       className="relative flex-1 sm:max-w-xs"
     >
       <label>
-        <span className="sr-only">Search projects</span>
+        <span className="sr-only">Search projects and people</span>
         <LuSearch
           size={14}
           aria-hidden
@@ -78,7 +75,7 @@ export function SearchBox() {
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={
-            onFeed ? "Search projects…" : "Search projects — press Enter"
+            onSearch ? "Search projects and people…" : "Search — press Enter"
           }
           className="w-full outline-none rounded-full border border-border bg-bg py-2 pl-8 pr-4 text-sm text-fg transition-colors placeholder:text-muted focus-visible:ring-0 focus-visible:border-border"
         />

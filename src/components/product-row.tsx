@@ -14,6 +14,7 @@ type RowProject = {
   by: string;
   department: string;
   type: string;
+  tags: string[];
   comments: number;
   createdAt: Date;
 } & Interactions;
@@ -82,6 +83,14 @@ export function ProductRow({
             >
               {p.type}
             </span>
+            {p.tags.map((t) => (
+              <span
+                key={t}
+                className="rounded-full border border-blue/30 bg-blue/5 px-1.5 py-0.5 tracking-wider text-blue"
+              >
+                {t}
+              </span>
+            ))}
           </div>
         </div>
       </div>

@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 // primary actions, a bordered pill, a quiet mono link, and a red one for
 // anything destructive.
 const buttonVariants = cva(
-  "inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap transition-colors disabled:pointer-events-none disabled:opacity-50 outline-none focus-visible:border-blue",
+  "inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap transition-colors disabled:pointer-events-none disabled:opacity-50 outline-none",
   {
     variants: {
       variant: {

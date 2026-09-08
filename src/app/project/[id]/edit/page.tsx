@@ -67,6 +67,7 @@ export default async function EditProjectPage({
               title: owned.title,
               summary: owned.summary,
               type: owned.type,
+              tags: owned.tags,
               url: owned.url,
               cover: owned.cover,
               media: owned.media,

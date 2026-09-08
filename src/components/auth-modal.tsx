@@ -18,7 +18,7 @@ import { USERNAME_MAX, USERNAME_MIN } from "@/lib/username";
 import { OPEN_AUTH_MODAL_EVENT } from "@/lib/require-auth";
 
 const inputClass =
-  "w-full rounded-xl border border-border bg-bg px-3.5 py-2.5 text-sm text-fg outline-none transition-colors placeholder:text-muted focus:border-blue";
+  "w-full rounded-xl border border-border bg-bg px-3.5 py-2.5 text-sm text-fg outline-none transition-colors placeholder:text-muted";
 const errClass = "mt-1 font-mono text-[11px] text-red";
 
 export function AuthModal() {

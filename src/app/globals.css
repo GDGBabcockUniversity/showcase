@@ -28,9 +28,11 @@ html {
 html.light {
   color-scheme: light;
   --color-bg: #ffffff;
-  --color-surface: #f6f6f7;
-  --color-surface-2: #ececee;
-  --color-border: #dcdce0;
+  /* Blue-tinted neutrals rather than flat grey, so panels sit in the same
+     hue family as the blue used for links and active chips. */
+  --color-surface: #f1f4f9;
+  --color-surface-2: #e5ebf4;
+  --color-border: #d5dde9;
   --color-fg: #0b0b0c;
   --color-muted: #5f5f66;
 }
@@ -42,17 +44,18 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* Visible keyboard focus everywhere (quality floor). */
+/* Keyboard focus stays visible — an app with no focus indicator is unusable
+   without a mouse — but it's a neutral ring rather than the blue one, and it
+   never fires on click. No border-radius here: it applied to the focused
+   element itself, squaring off rounded inputs the moment they were clicked. */
 :focus-visible {
-  outline: 2px solid var(--color-blue);
+  outline: 2px solid var(--color-muted);
   outline-offset: 2px;
-  border-radius: 2px;
 }
 
-/* Text fields already signal focus by turning their border blue, so the extra
-   outline just reads as a double ring. Everything else keeps it — radios,
-   checkboxes and file inputs are excluded because their visible affordance is
-   the label around them, not a border of their own. */
+/* Text fields keep no ring at all: browsers match :focus-visible on click for
+   them, so a ring here would show on every mouse focus. Radios, checkboxes and
+   file inputs are excluded because their affordance is the label around them. */
 input:not([type="radio"], [type="checkbox"], [type="file"]):focus-visible,
 textarea:focus-visible,
 select:focus-visible {
