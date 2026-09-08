@@ -66,7 +66,7 @@ export function DateTimePicker({
         <PopoverTrigger
           id={id}
           type="button"
-          className={`flex items-center gap-2 rounded-xl border border-border bg-bg px-3 py-2 text-sm outline-none transition-colors hover:border-blue focus:border-blue ${
+          className={`flex items-center gap-2 rounded-xl border border-border bg-bg px-3 py-2 text-sm outline-none transition-colors hover:border-blue ${
             date ? "text-fg" : "text-muted"
           }`}
         >

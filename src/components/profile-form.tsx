@@ -15,7 +15,7 @@ import { useSession } from "@/lib/auth-client";
 // The two selects stay native — `inputClass` keeps them looking like the
 // Input component.
 const inputClass =
-  "w-full rounded-xl border border-border bg-bg px-3 py-2 text-sm text-fg outline-none transition-colors placeholder:text-muted focus:border-blue";
+  "w-full rounded-xl border border-border bg-bg px-3 py-2 text-sm text-fg outline-none transition-colors placeholder:text-muted";
 
 const initial: ProfileState = { ok: false };
 
