@@ -28,7 +28,7 @@ export default function SignalModelPage() {
   return (
     <>
       <Nav />
-      <main className="mx-auto max-w-3xl px-4 py-8 sm:px-6 sm:py-10">
+      <main className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-6 sm:py-10">
         <section className="border-b border-border pb-8">
           <p className="eyebrow flex items-center gap-3">
             <Dots />
