@@ -4,6 +4,7 @@ import { useActionState, useEffect, useRef, useState, type DragEvent } from "rea
 import { toast } from "sonner";
 import { LuX } from "react-icons/lu";
 import { PROJECT_TYPES, TYPE_LABEL } from "@/lib/departments";
+import { MAX_TAGS, TAGS, TAG_LABEL } from "@/lib/tags";
 import { CollaboratorPicker } from "@/components/collaborator-picker";
 import { DateTimePicker } from "@/components/date-time-picker";
 import { Button } from "@/components/ui/button";
@@ -32,6 +33,7 @@ export type SubmitState = {
       | "summary"
       | "collaborators"
       | "type"
+      | "tags"
       | "url"
       | "cover"
       | "media"
@@ -115,8 +117,6 @@ export function FileDrop({
 
   return (
     <div className="mt-2">
-      {/* Rendered from state, so a failed submit — which resets uncontrolled
-          inputs — doesn't lose an upload that already succeeded. */}
       {urls.map((u) => (
         <input key={u} type="hidden" name={name} value={u} />
       ))}
@@ -205,7 +205,7 @@ const STEPS = [
     label: "Main info",
     heading: "Main info",
     blurb: "The essentials a reviewer reads first: what it is, who it's for, and where to find it.",
-    fields: ["title", "summary", "url", "type"] as ErrorField[],
+    fields: ["title", "summary", "url", "type", "tags"] as ErrorField[],
   },
   {
     id: "media",
@@ -310,6 +310,7 @@ export function SubmitForm({
   const [summary, setSummary] = useState("");
   const [url, setUrl] = useState("");
   const [type, setType] = useState("");
+  const [tags, setTags] = useState<string[]>([]);
   const [releaseAt, setReleaseAt] = useState("");
   // Recomputed on navigation rather than per keystroke — enough to drive the
   // sidebar ticks and the checklist without re-rendering the form constantly.
@@ -322,6 +323,7 @@ export function SubmitForm({
       title: title.trim().length >= TITLE_MIN,
       summary: summary.trim().length >= SUMMARY_MIN,
       type: !!type,
+      tags: tags.length > 0,
       cover: !!String(fd.get("cover") ?? ""),
       collaborators: fd.getAll("collaborators").length > 0,
       media: fd.getAll("media").length > 0,
@@ -532,6 +534,35 @@ export function SubmitForm({
             {state.errors?.type && <p className={errClass}>{state.errors.type}</p>}
           </fieldset>
 
+          <fieldset className={current.id === "main" ? "lg:col-span-2" : "hidden"}>
+            <legend className={labelClass}>
+              Topics <span className="text-muted/70">(optional, up to {MAX_TAGS})</span>
+            </legend>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {TAGS.map((t) => (
+                <label
+                  key={t}
+                  className="flex cursor-pointer items-center gap-2 rounded-full border border-border px-3 py-1.5 text-sm text-muted transition-colors has-[:checked]:border-blue has-[:checked]:bg-blue/10 has-[:checked]:text-blue hover:text-fg"
+                >
+                  <input
+                    type="checkbox"
+                    name="tags"
+                    value={t}
+                    checked={tags.includes(t)}
+                    onChange={(e) =>
+                      setTags((prev) =>
+                        e.target.checked ? [...prev, t] : prev.filter((x) => x !== t),
+                      )
+                    }
+                    className="sr-only"
+                  />
+                  {TAG_LABEL[t]}
+                </label>
+              ))}
+            </div>
+            {state.errors?.tags && <p className={errClass}>{state.errors.tags}</p>}
+          </fieldset>
+
           {/* Images and media */}
           <div className={current.id === "media" ? "" : "hidden"}>
             <span className={labelClass}>Cover image</span>
@@ -576,6 +607,7 @@ export function SubmitForm({
               <ChecklistRow label="Summary" ok={!!filled.summary} hint={`At least ${SUMMARY_MIN} characters`} />
               <ChecklistRow label="Type" ok={!!filled.type} hint="Pick one" />
               <ChecklistRow label="Cover image" ok={!!filled.cover} hint="Required" />
+              <ChecklistRow label="Topics" ok={!!filled.tags} hint="Optional" />
               <ChecklistRow label="Collaborators" ok={!!filled.collaborators} hint="Optional" />
             </ul>
             <div className="mt-5">
@@ -584,9 +616,7 @@ export function SubmitForm({
               </Label>
               <DateTimePicker id="releaseAt" value={releaseAt} onChange={setReleaseAt} />
               <input type="hidden" name="releaseAt" value={localToIso(releaseAt)} />
-              <p className="mt-1 font-mono text-[10px] uppercase tracking-wider text-muted">
-                Leave empty to go live straight away. Your local time.
-              </p>
+            
               {state.errors?.releaseAt && <p className={errClass}>{state.errors.releaseAt}</p>}
             </div>
 

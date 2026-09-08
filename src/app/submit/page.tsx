@@ -6,6 +6,7 @@ import { Nav } from "@/components/nav";
 import { Footer } from "@/components/footer";
 import { Dots } from "@/components/dots";
 import { PROJECT_TYPES } from "@/lib/departments";
+import { MAX_TAGS, TAGS } from "@/lib/tags";
 import { auth } from "@/lib/auth";
 import { inArray } from "drizzle-orm";
 import { db } from "@/db";
@@ -41,6 +42,10 @@ async function submitProject(_: SubmitState, formData: FormData): Promise<Submit
   const title = String(formData.get("title") ?? "").trim();
   const summary = String(formData.get("summary") ?? "").trim();
   const type = String(formData.get("type") ?? "");
+  // Checkbox chips, one value each — anything not in the vocabulary is dropped.
+  const tags = [...new Set(formData.getAll("tags").map(String))].filter((t) =>
+    (TAGS as readonly string[]).includes(t),
+  );
   const url = String(formData.get("url") ?? "").trim();
   // The picker submits user ids, one hidden input each.
   const collaboratorIds = [
@@ -77,6 +82,7 @@ async function submitProject(_: SubmitState, formData: FormData): Promise<Submit
       title: title.slice(0, TITLE_MAX),
       summary: summary.slice(0, SUMMARY_MAX),
       type: (PROJECT_TYPES as readonly string[]).includes(type) ? type : "",
+      tags: tags.slice(0, MAX_TAGS),
       url,
       collaborators: collaboratorIds.slice(0, MAX_COLLABORATORS),
       cover: isUploadUrl(cover) ? cover : null,
@@ -93,6 +99,7 @@ async function submitProject(_: SubmitState, formData: FormData): Promise<Submit
     errors.summary = `One full sentence, at least ${SUMMARY_MIN} characters.`;
   if (summary.length > SUMMARY_MAX) errors.summary = `Under ${SUMMARY_MAX} characters.`;
   if (!(PROJECT_TYPES as readonly string[]).includes(type)) errors.type = "Pick a type.";
+  if (tags.length > MAX_TAGS) errors.tags = `Up to ${MAX_TAGS} topics.`;
   if (url) {
     try {
       const u = new URL(url);
@@ -143,6 +150,7 @@ async function submitProject(_: SubmitState, formData: FormData): Promise<Submit
     title,
     summary,
     type,
+    tags,
     url: url || "",
     collaborators: collaborators.map((c) => c.id),
     cover,

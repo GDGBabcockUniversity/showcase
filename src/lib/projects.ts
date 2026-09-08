@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { and, count, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
+import { and, count, desc, eq, gte, ilike, inArray, lte, or, sql } from "drizzle-orm";
 import type { PgTable } from "drizzle-orm/pg-core";
 import { db } from "@/db";
 import { bookmark, click, comment, like, project, user, view } from "@/db/schema";
@@ -15,6 +15,7 @@ export type Project = {
   by: string;
   department: string;
   type: ProjectType;
+  tags: string[];
   url: string;
   cover: string | null;
   media: string[];
@@ -34,6 +35,7 @@ const projectColumns = {
   // display site can keep treating it as a plain string.
   department: sql<string>`coalesce(${user.department}, 'Unfiled')`,
   type: project.type,
+  tags: project.tags,
   url: project.url,
   cover: project.cover,
   media: project.media,
@@ -50,6 +52,7 @@ type ProjectRow = {
   summary: string;
   department: string;
   type: string;
+  tags: string[];
   url: string;
   cover: string | null;
   media: string[];
@@ -175,6 +178,39 @@ export async function getPublicProjectsByUser(userId: string): Promise<Project[]
     .innerJoin(user, eq(project.userId, user.id))
     .where(and(eq(project.userId, userId), published()));
   return attachCounts(rows);
+}
+
+export type Person = {
+  id: string;
+  username: string | null;
+  name: string;
+  image: string | null;
+  department: string | null;
+  projects: number;
+};
+
+// Public people search behind /feed?q=. Deliberately not searchUsers from
+// actions.ts: that one is session-gated and excludes the caller, both wrong
+// here. The left join carries published() so drafts and unreleased projects
+// don't inflate the count.
+export async function searchPeople(query: string): Promise<Person[]> {
+  const q = query.trim();
+  if (!q) return [];
+
+  return db
+    .select({
+      id: user.id,
+      username: user.username,
+      name: user.name,
+      image: user.image,
+      department: user.department,
+      projects: count(project.id),
+    })
+    .from(user)
+    .leftJoin(project, and(eq(project.userId, user.id), published()))
+    .where(or(ilike(user.name, `%${q}%`), ilike(user.username, `%${q}%`)))
+    .groupBy(user.id)
+    .limit(6);
 }
 
 export async function getProjectsByUser(userId: string): Promise<Project[]> {

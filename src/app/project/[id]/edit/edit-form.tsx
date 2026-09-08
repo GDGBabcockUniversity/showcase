@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { PROJECT_TYPES, TYPE_LABEL } from "@/lib/departments";
+import { MAX_TAGS, TAGS, TAG_LABEL } from "@/lib/tags";
 import { FileDrop, isoToLocal, localToIso } from "@/app/submit/submit-form";
 import {
   MAX_COLLABORATORS,
@@ -44,6 +45,7 @@ export function EditForm({
     title: string;
     summary: string;
     type: string;
+    tags: string[];
     url: string;
     cover: string | null;
     media: string[];
@@ -198,6 +200,30 @@ export function EditForm({
             ))}
           </div>
           {state.errors?.type && <p className={errClass}>{state.errors.type}</p>}
+        </fieldset>
+
+        <fieldset className="lg:col-span-2">
+          <legend className={labelClass}>
+            Topics <span className="text-muted/70">(optional, up to {MAX_TAGS})</span>
+          </legend>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {TAGS.map((t) => (
+              <label
+                key={t}
+                className="flex cursor-pointer items-center gap-2 rounded-full border border-border px-3 py-1.5 text-sm text-muted transition-colors has-[:checked]:border-blue has-[:checked]:bg-blue/10 has-[:checked]:text-blue hover:text-fg"
+              >
+                <input
+                  type="checkbox"
+                  name="tags"
+                  value={t}
+                  defaultChecked={project.tags.includes(t)}
+                  className="sr-only"
+                />
+                {TAG_LABEL[t]}
+              </label>
+            ))}
+          </div>
+          {state.errors?.tags && <p className={errClass}>{state.errors.tags}</p>}
         </fieldset>
 
         <div className="flex items-center justify-between gap-4 border-t border-border pt-5 lg:col-span-2">
