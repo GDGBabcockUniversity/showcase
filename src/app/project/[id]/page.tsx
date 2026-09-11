@@ -321,13 +321,34 @@ export default async function ProjectPage({
                 <ol className="mt-6 space-y-5">
                   {comments.map((c) => (
                     <li key={c.id} className="border-b border-border pb-5 last:border-0">
-                      <div className="flex items-baseline justify-between gap-3">
-                        <p className="min-w-0 break-words text-sm font-medium">{c.by}</p>
-                        <p className="font-mono text-[10px] uppercase tracking-wider text-muted">
-                          {c.createdAt.toLocaleDateString()}
-                        </p>
+                      <div className="flex items-start gap-3">
+                        <Avatar aria-hidden className="mt-0.5 border border-border">
+                          <AvatarImage src={c.image ?? undefined} alt="" />
+                          <AvatarFallback
+                            className="font-display text-xs font-semibold text-white"
+                            style={{
+                              background:
+                                "linear-gradient(135deg, var(--color-blue), var(--color-green))",
+                            }}
+                          >
+                            {c.by.trim()[0]?.toUpperCase() ?? "?"}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-baseline justify-between gap-3">
+                            <Link
+                              href={`/u/${c.username ?? c.userId}`}
+                              className="min-w-0 break-words text-sm font-medium transition-colors hover:text-blue"
+                            >
+                              {c.by}
+                            </Link>
+                            <p className="font-mono text-[10px] uppercase tracking-wider text-muted">
+                              {c.createdAt.toLocaleDateString()}
+                            </p>
+                          </div>
+                          <p className="mt-1.5 break-words text-sm leading-relaxed text-muted">{c.body}</p>
+                        </div>
                       </div>
-                      <p className="mt-1.5 break-words text-sm leading-relaxed text-muted">{c.body}</p>
                     </li>
                   ))}
                 </ol>

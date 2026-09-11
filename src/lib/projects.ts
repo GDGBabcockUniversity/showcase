@@ -330,11 +330,27 @@ export async function getOwnedProject(id: string, userId: string) {
   return rows[0];
 }
 
-export type ProjectComment = { id: string; body: string; createdAt: Date; by: string };
+export type ProjectComment = {
+  id: string;
+  body: string;
+  createdAt: Date;
+  by: string;
+  image: string | null;
+  username: string | null;
+  userId: string;
+};
 
 export async function getCommentsForProject(projectId: string): Promise<ProjectComment[]> {
   return db
-    .select({ id: comment.id, body: comment.body, createdAt: comment.createdAt, by: user.name })
+    .select({
+      id: comment.id,
+      body: comment.body,
+      createdAt: comment.createdAt,
+      by: user.name,
+      image: user.image,
+      username: user.username,
+      userId: user.id,
+    })
     .from(comment)
     .innerJoin(user, eq(comment.userId, user.id))
     .where(eq(comment.projectId, projectId))

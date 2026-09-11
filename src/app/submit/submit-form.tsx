@@ -381,9 +381,13 @@ export function SubmitForm({
             ? `Scheduled to go live ${new Date(state.receipt.releaseAt).toLocaleString()}.`
             : "A reviewer will pick it up before the next board."}
         </p>
-        <p className="mt-4 font-mono text-[11px] uppercase tracking-wider text-muted">
+        <button
+          type="button"
+          onClick={() => window.location.reload()}
+          className="mt-4 font-mono text-[11px] uppercase tracking-wider text-blue transition-colors hover:underline"
+        >
           Refresh to submit another.
-        </p>
+        </button>
       </div>
     );
   }
