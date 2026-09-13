@@ -61,15 +61,11 @@ export const auth = betterAuth({
       clientId: process.env.GOOGLE_CLIENT_ID as string,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET as string,
       async getUserInfo(token) {
-        console.log("token", token)
         if (!token.idToken) return null;
         const profile = decodeJwt(token.idToken) as GoogleProfile;
         if (!profile.email) return null;
         const email = normalizeEmail(profile.email);
         // if (!isAllowedDomain(email)) return null;
-        // No `id` here — provider identity is resolved separately from
-        // `data` (the raw profile, via its `sub`) by the provider's own
-        // accountSubject resolver, not from this mapped-user object.
         return {
           user: {
             name: profile.name ?? email,
