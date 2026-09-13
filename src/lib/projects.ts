@@ -407,13 +407,29 @@ export async function getOwnedProject(id: string, userId: string) {
   return rows[0];
 }
 
-export type ProjectComment = { id: string; body: string; createdAt: Date; by: string };
+export type ProjectComment = {
+  id: string;
+  body: string;
+  createdAt: Date;
+  by: string;
+  image: string | null;
+  username: string | null;
+  userId: string;
+};
 
 // Hidden (moderated) comments are excluded here too — "hidden" means hidden
 // from the public feed, not just from scoring.
 export async function getCommentsForProject(projectId: string): Promise<ProjectComment[]> {
   return db
-    .select({ id: interaction.id, body: interaction.body, createdAt: interaction.createdAt, by: user.name })
+    .select({
+      id: interaction.id,
+      body: interaction.body,
+      createdAt: interaction.createdAt,
+      by: user.name,
+      image: user.image,
+      username: user.username,
+      userId: user.id,
+    })
     .from(interaction)
     .innerJoin(user, eq(interaction.userId, user.id))
     .leftJoin(hiddenComment, eq(hiddenComment.interactionId, interaction.id))

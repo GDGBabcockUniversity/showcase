@@ -9,6 +9,10 @@
   --color-border: #26262a;
   --color-fg: #ededef;
   --color-muted: #9a9aa0;
+  /* Solid floating layer — popovers, cards, toasts. Matches the surface they
+     sit over so overlays read as part of the page instead of a see-through
+     hole. */
+  --color-panel: #151517;
 
   /* GDG functional accents */
   --color-blue: #4285f4; /* primary / links */
@@ -35,6 +39,7 @@ html.light {
   --color-border: #d5dde9;
   --color-fg: #0b0b0c;
   --color-muted: #5f5f66;
+  --color-panel: #f1f4f9;
 }
 
 body {
