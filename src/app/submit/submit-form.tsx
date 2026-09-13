@@ -6,7 +6,6 @@ import { LuX } from "react-icons/lu";
 import { PROJECT_TYPES, TYPE_LABEL } from "@/lib/departments";
 import { MAX_TAGS, TAGS, TAG_LABEL } from "@/lib/tags";
 import { CollaboratorPicker } from "@/components/collaborator-picker";
-import { DateTimePicker } from "@/components/date-time-picker";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -28,24 +27,12 @@ export type SubmitState = {
   ok: boolean;
   message?: string;
   errors?: Partial<
-    Record<
-      | "title"
-      | "summary"
-      | "collaborators"
-      | "type"
-      | "tags"
-      | "url"
-      | "cover"
-      | "media"
-      | "releaseAt",
-      string
-    >
+    Record<"title" | "summary" | "collaborators" | "type" | "tags" | "url" | "cover" | "media", string>
   >;
   receipt?: {
     title: string;
     collaborators: string[];
     media: number;
-    releaseAt: string | null;
   };
 };
 
@@ -226,25 +213,9 @@ const STEPS = [
     label: "Launch checklist",
     heading: "Launch checklist",
     blurb: "Everything below has to be filled in before this can go to a reviewer.",
-    fields: ["releaseAt"] as ErrorField[],
+    fields: [] as ErrorField[],
   },
 ];
-
-// <input type="datetime-local"> gives local wall-clock time; the server is
-// sent the absolute instant instead, so a schedule doesn't shift with the
-// server's timezone.
-export function localToIso(value: string) {
-  const d = new Date(value);
-  return Number.isNaN(d.getTime()) ? "" : d.toISOString();
-}
-
-export function isoToLocal(iso: string | null) {
-  if (!iso) return "";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "";
-  // Shift by the offset so toISOString's UTC slice reads as local time.
-  return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
-}
 
 function CharCount({ value, max }: { value: string; max: number }) {
   const used = value.length;
@@ -311,7 +282,6 @@ export function SubmitForm({
   const [url, setUrl] = useState("");
   const [type, setType] = useState("");
   const [tags, setTags] = useState<string[]>([]);
-  const [releaseAt, setReleaseAt] = useState("");
   // Recomputed on navigation rather than per keystroke — enough to drive the
   // sidebar ticks and the checklist without re-rendering the form constantly.
   const [filled, setFilled] = useState<Record<string, boolean>>({});
@@ -376,10 +346,7 @@ export function SubmitForm({
           {state.receipt.media > 0
             ? ` · ${state.receipt.media} image${state.receipt.media === 1 ? "" : "s"}`
             : ""}
-          .{" "}
-          {state.receipt.releaseAt
-            ? `Scheduled to go live ${new Date(state.receipt.releaseAt).toLocaleString()}.`
-            : "A reviewer will pick it up before the next board."}
+          . A reviewer will pick it up before the next board.
         </p>
         <button
           type="button"
@@ -614,15 +581,10 @@ export function SubmitForm({
               <ChecklistRow label="Topics" ok={!!filled.tags} hint="Optional" />
               <ChecklistRow label="Collaborators" ok={!!filled.collaborators} hint="Optional" />
             </ul>
-            <div className="mt-5">
-              <Label htmlFor="releaseAt">
-                Schedule release <span className="text-muted/70">(optional)</span>
-              </Label>
-              <DateTimePicker id="releaseAt" value={releaseAt} onChange={setReleaseAt} />
-              <input type="hidden" name="releaseAt" value={localToIso(releaseAt)} />
-            
-              {state.errors?.releaseAt && <p className={errClass}>{state.errors.releaseAt}</p>}
-            </div>
+            <p className="mt-4 text-sm text-muted">
+              There&apos;s no publish schedule to set — a reviewer decides when
+              this goes live, once they&apos;ve read it.
+            </p>
 
             {!allReady && (
               <p className="mt-3 font-mono text-[11px] text-muted">

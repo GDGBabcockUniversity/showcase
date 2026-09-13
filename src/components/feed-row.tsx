@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { Dots } from "@/components/dots";
 import { coverGradient } from "@/lib/cover";
-import { engagementScore, type Interactions } from "@/lib/gauge";
 
 type RowProject = {
   id: string;
@@ -11,11 +10,9 @@ type RowProject = {
   department: string;
   type: string;
   comments: number;
-} & Interactions;
+};
 
 export function FeedRow({ p, rank }: { p: RowProject; rank?: number }) {
-  const score = engagementScore(p);
-
   return (
     <Link
       href={`/project/${p.id}`}
@@ -62,9 +59,6 @@ export function FeedRow({ p, rank }: { p: RowProject; rank?: number }) {
           </p>
           <div className="flex items-center gap-3 font-mono text-[11px] text-muted">
             <span>{p.comments} comments</span>
-            <span className="rounded-full bg-blue/10 px-2 py-1 text-blue">
-              {score.toFixed(1)} signal
-            </span>
           </div>
         </div>
       </div>

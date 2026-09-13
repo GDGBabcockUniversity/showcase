@@ -15,7 +15,7 @@ import {
   getProjectsByUser,
   type Project,
 } from "@/lib/projects";
-import { engagementScore } from "@/lib/gauge";
+import { STATUS_LABEL, type ProjectStatus } from "@/lib/project-status";
 import { AvatarUpload } from "@/components/avatar-upload";
 import { ProfileForm } from "@/components/profile-form";
 import { AccountTabs } from "./account-tabs";
@@ -25,14 +25,12 @@ export const metadata: Metadata = {
   description: "Your profile, the projects you've shipped, and what you've liked.",
 };
 
-// Three buckets: unfinished, waiting for its release time, and on the board.
+// Three buckets: unfinished, submitted but not yet published, and on the board.
 function split(shipped: Project[]) {
-  const now = Date.now();
-  const pending = (p: Project) => p.releaseAt.getTime() > now;
   return {
     drafts: shipped.filter((p) => p.draft),
-    scheduled: shipped.filter((p) => !p.draft && pending(p)),
-    live: shipped.filter((p) => !p.draft && !pending(p)),
+    inReview: shipped.filter((p) => !p.draft && p.status !== "PUBLISHED"),
+    live: shipped.filter((p) => !p.draft && p.status === "PUBLISHED"),
   };
 }
 
@@ -60,7 +58,7 @@ export default async function AccountPage() {
     getBookmarkedProjectIds(user.id),
   ]);
 
-  const { drafts, scheduled, live } = split(shipped);
+  const { drafts, inReview, live } = split(shipped);
 
   const totals = live.reduce(
     (acc, p) => ({
@@ -68,13 +66,11 @@ export default async function AccountPage() {
       clicks: acc.clicks + p.clicks,
       likes: acc.likes + p.likes,
       comments: acc.comments + p.comments,
-      signal: acc.signal + engagementScore(p),
     }),
-    { views: 0, clicks: 0, likes: 0, comments: 0, signal: 0 },
+    { views: 0, clicks: 0, likes: 0, comments: 0 },
   );
 
   const stats: { label: string; value: string }[] = [
-    { label: "Signal", value: totals.signal.toFixed(1) },
     { label: "Views", value: totals.views.toLocaleString() },
     { label: "Clicks", value: totals.clicks.toLocaleString() },
     { label: "Likes", value: totals.likes.toLocaleString() },
@@ -156,14 +152,14 @@ export default async function AccountPage() {
           shipped={
             <>
               <DraftList drafts={drafts} />
-              <PendingList projects={scheduled} />
+              <InReviewList projects={inReview} />
               <ProjectList
                 projects={live}
                 likedIds={likedIds}
                 savedIds={savedIds}
                 owned
                 empty={
-                  drafts.length + scheduled.length > 0 ? null : (
+                  drafts.length + inReview.length > 0 ? null : (
                     <EmptyState
                       text="You haven't shipped anything yet."
                       href="/submit"
@@ -209,15 +205,15 @@ export default async function AccountPage() {
   );
 }
 
-// Published but not yet released — same shape as the draft list, different
+// Submitted but not yet published — same shape as the draft list, different
 // reason for being invisible.
-function PendingList({ projects }: { projects: Project[] }) {
+function InReviewList({ projects }: { projects: Project[] }) {
   if (projects.length === 0) return null;
 
   return (
     <div className="mt-4 rounded-2xl border border-blue/30 bg-blue/5 p-4">
       <p className="font-mono text-[10px] uppercase tracking-wider text-blue">
-        {projects.length} scheduled — {projects.length === 1 ? "it goes" : "they go"} live automatically
+        {projects.length} in review
       </p>
       <ul className="mt-2">
         {projects.map((p) => (
@@ -227,13 +223,9 @@ function PendingList({ projects }: { projects: Project[] }) {
               className="flex items-baseline justify-between gap-4 text-sm hover:text-blue"
             >
               <span className="truncate">{p.title}</span>
-              <time
-                dateTime={p.releaseAt.toISOString()}
-                suppressHydrationWarning
-                className="shrink-0 font-mono text-[10px] uppercase tracking-wider text-muted"
-              >
-                {p.releaseAt.toLocaleString()}
-              </time>
+              <span className="shrink-0 font-mono text-[10px] uppercase tracking-wider text-muted">
+                {STATUS_LABEL[p.status as ProjectStatus]}
+              </span>
             </Link>
           </li>
         ))}

@@ -14,7 +14,6 @@ import {
   searchPeople,
 } from "@/lib/projects";
 import { auth } from "@/lib/auth";
-import { engagementScore } from "@/lib/gauge";
 
 export const metadata: Metadata = {
   title: "Search — GDG Babcock Showcase",
@@ -47,7 +46,7 @@ export default async function SearchPage({
         p.by.toLowerCase().includes(query) ||
         p.tags.some((t) => t.includes(query)),
     )
-    .sort((a, b) => engagementScore(b) - engagementScore(a));
+    .sort((a, b) => b.signalScore - a.signalScore);
 
   const nothing = people.length === 0 && matches.length === 0;
 

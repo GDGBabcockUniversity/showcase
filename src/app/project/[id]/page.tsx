@@ -22,11 +22,11 @@ import {
   recordView,
 } from "@/lib/projects";
 import { auth } from "@/lib/auth";
-import { actorKey } from "@/lib/actor";
+import { actorKey, currentClientIp } from "@/lib/actor";
 import { TYPE_LABEL } from "@/lib/departments";
 import { TAG_LABEL, type Tag } from "@/lib/tags";
 import { coverGradient } from "@/lib/cover";
-import { engagementScore, type Interactions } from "@/lib/gauge";
+import { formatDistanceToNow } from "date-fns";
 
 export async function generateMetadata({
   params,
@@ -36,54 +36,17 @@ export async function generateMetadata({
   const { id } = await params;
   const project = await getProjectById(id);
   if (!project) return { title: "Project not found" };
+  const title = `${project.title} — GDG Babcock Showcase`;
   return {
-    title: `${project.title} — GDG Babcock Showcase`,
+    title,
     description: project.summary,
+    openGraph: project.cover
+      ? { title, description: project.summary, images: [project.cover] }
+      : undefined,
+    twitter: project.cover
+      ? { card: "summary_large_image", title, description: project.summary, images: [project.cover] }
+      : undefined,
   };
-}
-
-const METRIC_COLORS = {
-  views: "var(--color-blue)",
-  clicks: "var(--color-red)",
-  likes: "var(--color-yellow)",
-  comments: "var(--color-green)",
-} as const;
-
-const METRIC_HALF = { views: 400, clicks: 80, likes: 40, comments: 15 } as const;
-
-function contribution(metric: keyof Interactions, value: number) {
-  const half = METRIC_HALF[metric];
-  return value / (value + half);
-}
-
-function MomentumDots({ p }: { p: Interactions }) {
-  const metrics: (keyof Interactions)[] = ["views", "clicks", "likes", "comments"];
-  return (
-    <span
-      className="inline-flex items-center gap-2.5"
-      aria-label="Momentum by signal"
-    >
-      {metrics.map((m) => {
-        const c = contribution(m, p[m]);
-        return (
-          <span
-            key={m}
-            className="relative flex h-4 w-4 items-center justify-center rounded-full"
-            style={{ boxShadow: `inset 0 0 0 1px ${METRIC_COLORS[m]}` }}
-          >
-            <span
-              className="rounded-full transition-all"
-              style={{
-                background: METRIC_COLORS[m],
-                width: `${4 + c * 10}px`,
-                height: `${4 + c * 10}px`,
-              }}
-            />
-          </span>
-        );
-      })}
-    </span>
-  );
 }
 
 export default async function ProjectPage({
@@ -95,14 +58,14 @@ export default async function ProjectPage({
   const p = await getProjectById(id);
   if (!p) notFound();
 
-  const engagement = engagementScore(p);
-
   const session = await auth.api.getSession({ headers: await headers() });
 
-  // Resolve the actor now (reads request headers, only legal during render),
-  // then write the view after the response is sent so it never blocks the page.
+  // Resolve the actor and IP now (reads request headers, only legal during
+  // render), then write the view after the response is sent so it never
+  // blocks the page.
   const actor = await actorKey(session);
-  after(() => recordView(id, actor));
+  const ip = await currentClientIp();
+  after(() => recordView(id, actor, ip));
 
   const [allProjects, likedIds, savedIds, comments, makers] = await Promise.all([
     getAllProjects(),
@@ -112,9 +75,7 @@ export default async function ProjectPage({
     getProjectMakers(id),
   ]);
   const isOwner = session?.user.id === p.ownerId;
-  const ranked = [...allProjects].sort(
-    (a, b) => engagementScore(b) - engagementScore(a),
-  );
+  const ranked = [...allProjects].sort((a, b) => b.signalScore - a.signalScore);
   const rank = ranked.findIndex((x) => x.id === p.id) + 1;
   const total = ranked.length;
 
@@ -123,14 +84,7 @@ export default async function ProjectPage({
     ...allProjects.filter((i) => i.id !== p.id && i.department !== p.department),
   ].slice(0, 4);
 
-  const slides = [p.cover, ...p.media].filter((src): src is string => !!src);
-
-  const metrics: { key: keyof Interactions; label: string }[] = [
-    { key: "views", label: "Views" },
-    { key: "clicks", label: "Clicks" },
-    { key: "likes", label: "Likes" },
-    { key: "comments", label: "Comments" },
-  ];
+  const slides = p.media;
 
   return (
     <>
@@ -141,9 +95,25 @@ export default async function ProjectPage({
         <header className="mt-8 grid gap-8 border-b border-border pb-8 sm:grid-cols-[1fr_auto] sm:items-start">
           <div className="min-w-0">
 
-            <h1 className="mt-3 break-words font-display text-[2.75rem] font-bold leading-[0.95] tracking-tight sm:text-6xl">
-              {p.title}
-            </h1>
+            <div className="mt-3 flex items-center gap-4">
+              {p.cover ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={p.cover}
+                  alt=""
+                  className="h-16 w-16 shrink-0 rounded-xl border border-border object-cover sm:h-20 sm:w-20"
+                />
+              ) : (
+                <div
+                  className="h-16 w-16 shrink-0 rounded-xl sm:h-20 sm:w-20"
+                  style={{ background: coverGradient(p.title) }}
+                  aria-hidden
+                />
+              )}
+              <h1 className="min-w-0 break-words font-display text-[2.75rem] font-bold leading-[0.95] tracking-tight sm:text-6xl">
+                {p.title}
+              </h1>
+            </div>
             <div className="mt-6">
               <p className="font-mono text-[10px] uppercase tracking-wider text-muted">
                 Shipped by
@@ -185,13 +155,13 @@ export default async function ProjectPage({
               size="lg"
             />
             <div className="flex items-center gap-2">
+              <VisitLink id={p.id} url={p.url} />
               <BookmarkButton
                 key={`${p.id}-${savedIds.has(p.id)}`}
                 id={p.id}
                 saved={savedIds.has(p.id)}
                 size="lg"
               />
-              <VisitLink id={p.id} url={p.url} />
             </div>
             {isOwner && (
               <Link
@@ -206,25 +176,16 @@ export default async function ProjectPage({
         <div className="mt-10 grid gap-10 lg:grid-cols-[minmax(0,1fr)_320px]">
           {/* Left column */}
           <div className="min-w-0">
-            {/* Cover cell — framed like a film cell */}
-            <figure id="overview">
-              <div className="flex items-center justify-between font-mono text-[10px] uppercase tracking-wider text-muted">
-                <span>{"// media"}</span>
-                <span>{String(slides.length || 1).padStart(2, "0")} total</span>
-              </div>
-              {/* Cover first, then any extra media — one image per slide. The
-                  gradient stands in for projects filed before covers were
-                  required. */}
-              {slides.length > 0 ? (
+            {/* Gallery — extra media only; the cover shows by the title instead. */}
+            {slides.length > 0 && (
+              <figure id="overview">
+                <div className="flex items-center justify-between font-mono text-[10px] uppercase tracking-wider text-muted">
+                  <span>{"// media"}</span>
+                  <span>{String(slides.length).padStart(2, "0")} total</span>
+                </div>
                 <MediaSlider images={slides} title={p.title} />
-              ) : (
-                <div
-                  className="mt-2 aspect-[16/9] w-full rounded-2xl"
-                  style={{ background: coverGradient(p.title) }}
-                  aria-hidden
-                />
-              )}
-            </figure>
+              </figure>
+            )}
 
             {/* About */}
             <section className="mt-12">
@@ -237,58 +198,6 @@ export default async function ProjectPage({
                 maker in {p.department.toLowerCase()}. Every submission is
                 read by a reviewer before it lands on the board, so being here
                 means someone signed off on what {p.by.split(" ")[0]} shipped.
-              </p>
-            </section>
-
-            {/* Momentum */}
-            <section id="momentum" className="mt-12 border-t border-border pt-10">
-              <div className="flex items-baseline justify-between gap-6">
-                <div>
-                  <p className="eyebrow">Momentum</p>
-                  <h2 className="mt-2 font-display text-2xl font-semibold tracking-tight">
-                    How this project is being received
-                  </h2>
-                </div>
-                <span className="font-display text-5xl font-semibold tabular-nums">
-                  {engagement.toFixed(1)}
-                </span>
-              </div>
-
-              <div className="mt-8 grid gap-px overflow-hidden rounded-2xl border border-border bg-border sm:grid-cols-4">
-                {metrics.map((m) => {
-                  const c = contribution(m.key, p[m.key]);
-                  return (
-                    <div key={m.key} className="bg-surface p-5">
-                      <div className="flex items-center justify-between">
-                        <p className="font-mono text-[10px] uppercase tracking-wider text-muted">
-                          {m.label}
-                        </p>
-                        <span
-                          className="h-2 w-2 rounded-full"
-                          style={{ background: METRIC_COLORS[m.key] }}
-                        />
-                      </div>
-                      <p className="mt-3 font-display text-3xl font-semibold tabular-nums">
-                        {p[m.key].toLocaleString()}
-                      </p>
-                      <div className="mt-3 h-1 w-full rounded-full bg-bg">
-                        <div
-                          className="h-full rounded-full"
-                          style={{
-                            width: `${Math.round(c * 100)}%`,
-                            background: METRIC_COLORS[m.key],
-                          }}
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
-              <p className="mt-4 max-w-2xl text-xs text-muted">
-                Signal is a weighted composite of the four interactions above.
-                Clicks pay most — a click means the visitor left this page for
-                the project itself.
               </p>
             </section>
 
@@ -342,8 +251,8 @@ export default async function ProjectPage({
                             >
                               {c.by}
                             </Link>
-                            <p className="font-mono text-[10px] uppercase tracking-wider text-muted">
-                              {c.createdAt.toLocaleDateString()}
+                            <p className="font-mono text-[10px] tracking-wider text-muted">
+                              {formatDistanceToNow(c.createdAt, { addSuffix: true })}
                             </p>
                           </div>
                           <p className="mt-1.5 break-words text-sm leading-relaxed text-muted">{c.body}</p>
@@ -390,12 +299,6 @@ export default async function ProjectPage({
                           {item.department} · {TYPE_LABEL[item.type]}
                         </span>
                       </span>
-                      <span className="flex items-center gap-3">
-                        <MomentumDots p={item} />
-                        <span className="w-10 text-right font-mono text-xs text-blue tabular-nums">
-                          {engagementScore(item).toFixed(1)}
-                        </span>
-                      </span>
                     </Link>
                   </li>
                 ))}
@@ -416,19 +319,8 @@ export default async function ProjectPage({
                 <span className="font-mono text-xs text-muted">of {total}</span>
               </div>
               <p className="mt-3 font-mono text-[11px] uppercase tracking-wider text-muted">
-                Ranked by community signal, updated live.
+                Ranked by last night&apos;s signal score.
               </p>
-              <div className="mt-5 border-t border-border pt-4">
-                <p className="font-mono text-[10px] uppercase tracking-wider text-muted">
-                  Signal now
-                </p>
-                <div className="mt-2 flex items-center justify-between gap-3">
-                  <MomentumDots p={p} />
-                  <span className="font-display text-2xl font-semibold tabular-nums">
-                    {engagement.toFixed(1)}
-                  </span>
-                </div>
-              </div>
             </div>
 
             {/* Meta rail */}

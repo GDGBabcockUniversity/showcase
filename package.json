@@ -9,7 +9,8 @@
     "start": "next start",
     "lint": "eslint",
     "db:push": "drizzle-kit push",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "db:backfill": "bunx tsx src/db/migrate-signals.ts"
   },
   "dependencies": {
     "@radix-ui/react-avatar": "^1.2.6",

@@ -8,9 +8,9 @@ import { Dots } from "@/components/dots";
 import { PROJECT_TYPES } from "@/lib/departments";
 import { MAX_TAGS, TAGS } from "@/lib/tags";
 import { auth } from "@/lib/auth";
-import { inArray } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
-import { project, user } from "@/db/schema";
+import { project, projectContributor, projectTag, user } from "@/db/schema";
 import {
   isUploadUrl,
   MAX_COLLABORATORS,
@@ -56,13 +56,6 @@ async function submitProject(_: SubmitState, formData: FormData): Promise<Submit
   // UploadThing URLs, posted by the drop zones — the bytes never touch this action.
   const cover = String(formData.get("cover") ?? "").trim();
   const media = formData.getAll("media").map(String).filter(Boolean);
-  // Posted as an ISO string by the form, so the schedule means the same
-  // instant whatever timezone the server happens to run in.
-  const scheduled = String(formData.get("releaseAt") ?? "").trim();
-  const parsed = scheduled ? new Date(scheduled) : null;
-  const badSchedule = !!parsed && Number.isNaN(parsed.getTime());
-  // A time that's already passed just means "now".
-  const releaseAt = parsed && !badSchedule && parsed > new Date() ? parsed : null;
 
   const errors: SubmitState["errors"] = {};
   if (draft) {
@@ -82,14 +75,21 @@ async function submitProject(_: SubmitState, formData: FormData): Promise<Submit
       title: title.slice(0, TITLE_MAX),
       summary: summary.slice(0, SUMMARY_MAX),
       type: (PROJECT_TYPES as readonly string[]).includes(type) ? type : "",
-      tags: tags.slice(0, MAX_TAGS),
       url,
-      collaborators: collaboratorIds.slice(0, MAX_COLLABORATORS),
       cover: isUploadUrl(cover) ? cover : null,
       media: media.filter(isUploadUrl).slice(0, MAX_EXTRA_MEDIA),
       draft: true,
-      releaseAt: releaseAt ?? undefined,
     });
+    const draftCollaborators = collaboratorIds.slice(0, MAX_COLLABORATORS);
+    if (draftCollaborators.length > 0) {
+      await db
+        .insert(projectContributor)
+        .values(draftCollaborators.map((userId) => ({ id: randomUUID(), projectId: id, userId })));
+    }
+    const draftTags = tags.slice(0, MAX_TAGS);
+    if (draftTags.length > 0) {
+      await db.insert(projectTag).values(draftTags.map((tagId) => ({ id: randomUUID(), projectId: id, tagId })));
+    }
     redirect(`/project/${id}/edit`);
   }
 
@@ -132,8 +132,6 @@ async function submitProject(_: SubmitState, formData: FormData): Promise<Submit
     errors.cover = "That cover didn't upload properly — try again.";
   }
 
-  if (badSchedule) errors.releaseAt = "That release time isn't valid.";
-
   if (media.length > MAX_EXTRA_MEDIA) {
     errors.media = `Up to ${MAX_EXTRA_MEDIA} extra images.`;
   } else if (media.some((u) => !isUploadUrl(u))) {
@@ -144,19 +142,32 @@ async function submitProject(_: SubmitState, formData: FormData): Promise<Submit
     return { ok: false, errors, message: "Fix the highlighted fields." };
   }
 
+  // Denormalized onto the project at submit time so cohort/ranking queries
+  // never need to join back to `user`.
+  const [submitter] = await db.select({ department: user.department }).from(user).where(eq(user.id, session.user.id));
+
+  const id = randomUUID();
   await db.insert(project).values({
-    id: randomUUID(),
+    id,
     userId: session.user.id,
     title,
     summary,
     type,
-    tags,
     url: url || "",
-    collaborators: collaborators.map((c) => c.id),
     cover,
     media,
-    releaseAt: releaseAt ?? undefined,
+    department: submitter?.department ?? null,
+    draft: false,
+    status: "PENDING",
   });
+  if (collaborators.length > 0) {
+    await db
+      .insert(projectContributor)
+      .values(collaborators.map((c) => ({ id: randomUUID(), projectId: id, userId: c.id })));
+  }
+  if (tags.length > 0) {
+    await db.insert(projectTag).values(tags.map((tagId) => ({ id: randomUUID(), projectId: id, tagId })));
+  }
 
   return {
     ok: true,
@@ -164,7 +175,6 @@ async function submitProject(_: SubmitState, formData: FormData): Promise<Submit
       title,
       collaborators: collaborators.map((c) => c.name),
       media: 1 + media.length,
-      releaseAt: releaseAt?.toISOString() ?? null,
     },
   };
 }
