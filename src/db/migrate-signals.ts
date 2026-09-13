@@ -1,12 +1,3 @@
-// One-time backfill for the signal-ranking schema migration. Run this after
-// `drizzle/0001_signal_scoring_schema.sql` has been applied (it needs the new
-// tables/columns to exist) and BEFORE `drizzle/0002_signal_scoring_cleanup.sql`
-// (which drops the old tables/columns this script reads from).
-//
-//   bunx tsx src/db/migrate-signals.ts
-//
-// Safe to re-run: every insert is `ON CONFLICT DO NOTHING`, and the status/
-// department backfill is idempotent (same inputs, same outputs).
 import { sql } from "drizzle-orm";
 import { db } from "./index";
 
