@@ -7,14 +7,13 @@ import { Dots } from "@/components/dots";
 import { ProductRow } from "@/components/product-row";
 import { Confetti, GdgBackdrop } from "@/components/celebration";
 import {
-  LAST_MONTH_LABEL,
+  THIS_MONTH_LABEL,
   getBookmarkedProjectIds,
   getLikedProjectIds,
   getTopThreeProjects,
   type Project,
 } from "@/lib/projects";
 import { auth } from "@/lib/auth";
-import { engagementScore } from "@/lib/gauge";
 
 export const metadata: Metadata = {
   title: "This month — GDG Babcock Showcase",
@@ -70,7 +69,7 @@ function Winner({
         className="mt-3 font-display text-2xl font-semibold tabular-nums sm:text-3xl"
         style={{ color }}
       >
-        {engagementScore(p).toFixed(1)}
+        {p.signalScore.toFixed(2)}
       </p>
       <p className="font-mono text-[10px] uppercase tracking-wider text-muted">Signal</p>
     </Link>
@@ -105,7 +104,7 @@ export default async function ThisMonthPage() {
                   "linear-gradient(100deg, var(--color-blue), var(--color-red) 35%, var(--color-yellow) 65%, var(--color-green))",
               }}
             >
-              {LAST_MONTH_LABEL}&apos;s picks
+              {THIS_MONTH_LABEL}&apos;s picks
             </span>
           </h1>
           <p className="mx-auto mt-4 max-w-2xl text-sm leading-relaxed text-muted sm:text-base">

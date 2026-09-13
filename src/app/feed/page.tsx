@@ -11,7 +11,7 @@ import {
   getBookmarkedProjectIds,
   getLikedProjectIds,
   getTopThreeProjects,
-  LAST_MONTH_LABEL,
+  THIS_MONTH_LABEL,
 } from "@/lib/projects";
 import { auth } from "@/lib/auth";
 import {
@@ -21,7 +21,7 @@ import {
   type ProjectType,
 } from "@/lib/departments";
 import { TAGS, TAG_LABEL, type Tag } from "@/lib/tags";
-import { ENGAGEMENT_WEIGHTS, engagementScore } from "@/lib/gauge";
+import { ENGAGEMENT_WEIGHTS } from "@/lib/signal-scores";
 import { relativeDate } from "@/lib/when";
 
 export const metadata: Metadata = {
@@ -72,9 +72,7 @@ export default async function FeedPage({
     .filter((p) => !tagFilter || p.tags.includes(tagFilter));
 
   const lastTopThree = await getTopThreeProjects()
-  const ranked = [...filtered].sort(
-    (a, b) => engagementScore(b) - engagementScore(a),
-  );
+  const ranked = [...filtered].sort((a, b) => b.signalScore - a.signalScore);
 
   // Buckets get coarser the further back you go — Today, Yesterday, Last
   // week, Last month, then the filing date itself. Labels come out in date
@@ -208,7 +206,7 @@ export default async function FeedPage({
                         </span>
                       </span>
                       <span className="font-mono text-xs text-blue tabular-nums">
-                        {engagementScore(p).toFixed(1)}
+                        {p.signalScore.toFixed(2)}
                       </span>
                     </Link>
                   </li>
@@ -256,7 +254,7 @@ export default async function FeedPage({
           <section className="mt-12">
             <div className="flex items-baseline justify-between border-b border-border pb-3">
               <div>
-                <p className="eyebrow">{LAST_MONTH_LABEL}</p>
+                <p className="eyebrow">{THIS_MONTH_LABEL}</p>
                 <h2 className="mt-1 font-display text-xl font-semibold tracking-tight">
                   Top 3 of the month
                 </h2>

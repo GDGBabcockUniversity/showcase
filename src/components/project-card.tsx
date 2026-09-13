@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { coverGradient } from "@/lib/cover";
 import type { Project } from "@/lib/projects";
-import { engagementScore } from "@/lib/gauge";
 
 export function ProjectCard({ p }: { p: Project }) {
   return (
@@ -26,7 +25,7 @@ export function ProjectCard({ p }: { p: Project }) {
           Community signal
         </span>
         <span className="font-mono text-xs text-blue">
-          {engagementScore(p).toFixed(1)}
+          {p.signalScore.toFixed(2)}
         </span>
       </div>
     </Link>

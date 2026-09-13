@@ -14,7 +14,6 @@ import {
   getLikedProjectIds,
   getPublicProjectsByUser,
 } from "@/lib/projects";
-import { engagementScore } from "@/lib/gauge";
 
 async function getProfile(handle: string) {
   
@@ -64,7 +63,7 @@ export default async function ProfilePage({
     session ? getBookmarkedProjectIds(session.user.id) : Promise.resolve(new Set<string>()),
   ]);
 
-  const signal = projects.reduce((sum, p) => sum + engagementScore(p), 0);
+  const signal = projects.reduce((sum, p) => sum + p.signalScore, 0);
   const memberSince = profile.createdAt.toLocaleDateString("en-US", {
     month: "long",
     year: "numeric",

@@ -5,14 +5,13 @@ import { toast } from "sonner";
 import Link from "next/link";
 import { deleteProject, updateProject, type EditState } from "@/app/actions";
 import { CollaboratorPicker } from "@/components/collaborator-picker";
-import { DateTimePicker } from "@/components/date-time-picker";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { PROJECT_TYPES, TYPE_LABEL } from "@/lib/departments";
 import { MAX_TAGS, TAGS, TAG_LABEL } from "@/lib/tags";
-import { FileDrop, isoToLocal, localToIso } from "@/app/submit/submit-form";
+import { FileDrop } from "@/app/submit/submit-form";
 import {
   MAX_COLLABORATORS,
   MAX_EXTRA_MEDIA,
@@ -50,7 +49,6 @@ export function EditForm({
     cover: string | null;
     media: string[];
     draft: boolean;
-    releaseAt: string | null;
   };
   collaborators: { id: string; name: string; department: string | null }[];
 }) {
@@ -59,9 +57,6 @@ export function EditForm({
 
   const [title, setTitle] = useState(project.title);
   const [summary, setSummary] = useState(project.summary);
-  // The stored instant reads as local time, which the server can't know, so
-  // the two renders legitimately differ — the client's is the right one.
-  const [releaseAt, setReleaseAt] = useState(() => isoToLocal(project.releaseAt));
 
   // Toast whatever the action came back with; the per-field errors stay next
   // to their inputs where they're actionable.
@@ -166,18 +161,6 @@ export function EditForm({
             initial={project.media}
           />
           {state.errors?.media && <p className={errClass}>{state.errors.media}</p>}
-        </div>
-
-        <div>
-          <Label htmlFor="releaseAt">
-            Scheduled release <span className="text-muted/70">(optional)</span>
-          </Label>
-          <DateTimePicker id="releaseAt" value={releaseAt} onChange={setReleaseAt} />
-          <input type="hidden" name="releaseAt" value={localToIso(releaseAt)} />
-          <p className="mt-1 font-mono text-[10px] uppercase tracking-wider text-muted">
-            Clear it to go live now. Your local time.
-          </p>
-          {state.errors?.releaseAt && <p className={errClass}>{state.errors.releaseAt}</p>}
         </div>
 
         <fieldset className="lg:col-span-2">

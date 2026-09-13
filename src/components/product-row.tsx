@@ -5,7 +5,6 @@ import { UpvotePill } from "@/components/upvote-pill";
 import { UpvoteButton } from "@/components/upvote-button";
 import { BookmarkButton } from "@/components/bookmark-button";
 import { coverGradient } from "@/lib/cover";
-import { engagementScore, type Interactions } from "@/lib/gauge";
 
 type RowProject = {
   id: string;
@@ -16,8 +15,10 @@ type RowProject = {
   type: string;
   tags: string[];
   comments: number;
+  likes: number;
   createdAt: Date;
-} & Interactions;
+  signalScore: number;
+};
 
 export function ProductRow({
   p,
@@ -30,7 +31,7 @@ export function ProductRow({
   liked?: boolean;
   saved?: boolean;
 }) {
-  const score = engagementScore(p);
+  const score = p.signalScore;
 
   // Mobile stacks: identity on one line, actions underneath — the single row
   // left the title column about 100px wide and broke the meta line onto one

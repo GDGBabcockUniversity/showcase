@@ -10,7 +10,9 @@ export function UpvotePill({
   signal: number;
   compact?: boolean;
 }) {
-  const glow = Math.max(0.35, Math.min(1, signal / 80));
+  // Signal is a 0–1.0 weighted composite (see src/lib/signal-scores.ts) — no
+  // rescaling needed, just a floor so a brand-new project's dot isn't fully dim.
+  const glow = Math.max(0.35, Math.min(1, signal));
 
   return (
     <div
@@ -19,7 +21,7 @@ export function UpvotePill({
         "group-hover:border-blue group-hover:bg-blue/5",
         compact ? "px-2.5 py-1.5 min-w-[46px]" : "px-3 py-2 min-w-[58px]",
       ].join(" ")}
-      aria-label={`Signal ${signal.toFixed(1)}`}
+      aria-label={`Signal ${signal.toFixed(2)}`}
     >
       <svg
         width={compact ? 14 : 16}
@@ -37,7 +39,7 @@ export function UpvotePill({
           compact ? "text-[11px]" : "text-xs"
         }`}
       >
-        {signal.toFixed(1)}
+        {signal.toFixed(2)}
       </span>
     </div>
   );

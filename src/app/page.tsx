@@ -8,7 +8,6 @@ import { getAllProjects, getBookmarkedProjectIds,
   getLikedProjectIds, getTopMakers } from "@/lib/projects";
 import { auth } from "@/lib/auth";
 import { PROJECT_TYPES, TYPE_LABEL } from "@/lib/departments";
-import { engagementScore } from "@/lib/gauge";
 
 export default async function Home() {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -18,9 +17,7 @@ export default async function Home() {
     session ? getBookmarkedProjectIds(session.user.id) : Promise.resolve(new Set<string>()),
     getTopMakers(),
   ]);
-  const ranked = [...projects].sort(
-    (a, b) => engagementScore(b) - engagementScore(a),
-  );
+  const ranked = [...projects].sort((a, b) => b.signalScore - a.signalScore);
   const today = ranked.slice(0, 5);
   const thisWeek = ranked.slice(5, 8);
 

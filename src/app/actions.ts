@@ -8,8 +8,9 @@ import { after } from "next/server";
 import { and, eq, ilike, inArray, ne } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { db } from "@/db";
-import { bookmark, click, comment, like, project, user } from "@/db/schema";
-import { actorKey } from "@/lib/actor";
+import { bookmark, interaction, project, projectContributor, user } from "@/db/schema";
+import { actorKey, currentClientIp, type Actor } from "@/lib/actor";
+import { recordInteraction } from "@/lib/interactions";
 import { DEPARTMENTS, LEVELS, PROJECT_TYPES } from "@/lib/departments";
 import { MAX_TAGS, TAGS } from "@/lib/tags";
 import { slugify, USERNAME_MIN } from "@/lib/username";
@@ -34,18 +35,17 @@ async function requireSession() {
 export async function toggleLike(projectId: string) {
   const session = await requireSession();
   const userId = session.user.id;
+  const actor: Actor = { key: `user:${userId}`, userId };
 
   const existing = await db
-    .select({ id: like.id })
-    .from(like)
-    .where(and(eq(like.projectId, projectId), eq(like.userId, userId)));
+    .select({ id: interaction.id })
+    .from(interaction)
+    .where(and(eq(interaction.projectId, projectId), eq(interaction.userId, userId), eq(interaction.type, "like")));
 
   if (existing.length > 0) {
-    await db
-      .delete(like)
-      .where(and(eq(like.projectId, projectId), eq(like.userId, userId)));
+    await db.delete(interaction).where(eq(interaction.id, existing[0].id));
   } else {
-    await db.insert(like).values({ id: randomUUID(), projectId, userId });
+    await recordInteraction({ projectId, type: "like", actor, ip: await currentClientIp() });
   }
 
   revalidatePath("/", "layout");
@@ -65,9 +65,20 @@ export async function addComment(
   if (body.length > 500)
     return { ok: false, error: "Keep it under 500 characters." };
 
-  await db
-    .insert(comment)
-    .values({ id: randomUUID(), projectId, userId: session.user.id, body });
+  const actor: Actor = { key: `user:${session.user.id}`, userId: session.user.id };
+  const result = await recordInteraction({
+    projectId,
+    type: "comment",
+    actor,
+    body,
+    ip: await currentClientIp(),
+  });
+  if (!result.ok) {
+    return {
+      ok: false,
+      error: result.reason === "self" ? "You can't comment on your own project." : "That didn't work.",
+    };
+  }
 
   revalidatePath(`/project/${projectId}`);
   return { ok: true };
@@ -78,11 +89,9 @@ export async function addComment(
 // APIs are allowed inside the callback here because this is a Server Function.
 export async function logClick(projectId: string) {
   after(async () => {
-    const { key, userId } = await actorKey();
-    await db
-      .insert(click)
-      .values({ id: randomUUID(), projectId, userId, actorKey: key })
-      .onConflictDoNothing();
+    const actor = await actorKey();
+    const ip = await currentClientIp();
+    await recordInteraction({ projectId, type: "click", actor, ip });
     revalidatePath(`/project/${projectId}`);
   });
 }
@@ -207,20 +216,20 @@ export type EditState = {
   ok: boolean;
   message?: string;
   errors?: Partial<
-    Record<
-      | "title"
-      | "summary"
-      | "type"
-      | "tags"
-      | "url"
-      | "collaborators"
-      | "cover"
-      | "releaseAt"
-      | "media",
-      string
-    >
+    Record<"title" | "summary" | "type" | "tags" | "url" | "collaborators" | "cover" | "media", string>
   >;
 };
+
+// Replaces a project's contributor rows wholesale — simpler than diffing,
+// and cheap at MAX_COLLABORATORS rows.
+async function setContributors(projectId: string, userIds: string[]) {
+  await db.delete(projectContributor).where(eq(projectContributor.projectId, projectId));
+  if (userIds.length > 0) {
+    await db
+      .insert(projectContributor)
+      .values(userIds.map((userId) => ({ id: randomUUID(), projectId, userId })));
+  }
+}
 
 // Owner-only. The where clause carries the user id, so a project belonging to
 // someone else matches nothing and updates no rows rather than erroring late.
@@ -230,6 +239,12 @@ export async function updateProject(
   formData: FormData,
 ): Promise<EditState> {
   const session = await requireSession();
+
+  const [owned] = await db
+    .select({ status: project.status })
+    .from(project)
+    .where(and(eq(project.id, projectId), eq(project.userId, session.user.id)));
+  if (!owned) return { ok: false, message: "That isn't your project." };
 
   const title = String(formData.get("title") ?? "").trim();
   const summary = String(formData.get("summary") ?? "").trim();
@@ -246,15 +261,9 @@ export async function updateProject(
   // removed simply isn't in it.
   const postedCover = String(formData.get("cover") ?? "").trim();
   const media = formData.getAll("media").map(String).filter(Boolean);
-  // ISO instant from the form; empty clears the schedule, a past time means now.
-  const scheduled = String(formData.get("releaseAt") ?? "").trim();
-  const parsed = scheduled ? new Date(scheduled) : null;
-  const badSchedule = !!parsed && Number.isNaN(parsed.getTime());
-  const releaseAt =
-    parsed && !badSchedule && parsed > new Date() ? parsed : null;
 
   // "Save draft" keeps the row incomplete and off the board; any other submit
-  // is a publish and has to clear the same bar as a fresh submission.
+  // is a resubmission and has to clear the same bar as a fresh submission.
   if (formData.get("intent") === "draft") {
     if (title.length < TITLE_MIN) {
       return {
@@ -263,7 +272,7 @@ export async function updateProject(
         message: "Give the draft a title first.",
       };
     }
-    const saved = await db
+    await db
       .update(project)
       .set({
         title: title.slice(0, TITLE_MAX),
@@ -271,18 +280,12 @@ export async function updateProject(
         type: (PROJECT_TYPES as readonly string[]).includes(type) ? type : "",
         tags: tags.slice(0, MAX_TAGS),
         url,
-        collaborators: collaboratorIds.slice(0, MAX_COLLABORATORS),
         cover: isUploadUrl(postedCover) ? postedCover : null,
         media: media.filter(isUploadUrl).slice(0, MAX_EXTRA_MEDIA),
         draft: true,
-        releaseAt: releaseAt ?? new Date(),
       })
-      .where(
-        and(eq(project.id, projectId), eq(project.userId, session.user.id)),
-      )
-      .returning({ id: project.id });
-    if (saved.length === 0)
-      return { ok: false, message: "That isn't your project." };
+      .where(eq(project.id, projectId));
+    await setContributors(projectId, collaboratorIds.slice(0, MAX_COLLABORATORS));
     return { ok: true, message: "Draft saved." };
   }
 
@@ -320,8 +323,6 @@ export async function updateProject(
     collaborators = found.map((f) => f.id);
   }
 
-  if (badSchedule) errors.releaseAt = "That release time isn't valid.";
-
   if (!postedCover) {
     errors.cover = "Cover image is required.";
   } else if (!isUploadUrl(postedCover)) {
@@ -338,34 +339,21 @@ export async function updateProject(
     return { ok: false, errors, message: "Fix the highlighted fields." };
   }
 
-  const updated = await db
-    .update(project)
-    .set({
-      title,
-      summary,
-      type,
-      tags,
-      url: url || "",
-      collaborators,
-      cover: postedCover,
-      media,
-      draft: false,
-      releaseAt: releaseAt ?? new Date(),
-    })
-    .where(and(eq(project.id, projectId), eq(project.userId, session.user.id)))
-    .returning({ id: project.id });
+  // A project a reviewer sent back for changes goes back into the queue on
+  // resubmission. Anything already PUBLISHED stays published — edits to a
+  // live project don't pull it back off the board.
+  const nextStatus = owned.status === "CHANGES_REQUESTED" ? "PENDING" : owned.status;
 
-  if (updated.length === 0)
-    return { ok: false, message: "That isn't your project." };
+  await db
+    .update(project)
+    .set({ title, summary, type, tags, url: url || "", cover: postedCover, media, draft: false, status: nextStatus })
+    .where(eq(project.id, projectId));
+  await setContributors(projectId, collaborators);
 
   revalidatePath("/", "layout");
   return {
     ok: true,
-    // No date in the message: the server's timezone isn't the user's, and the
-    // field beside it already shows their local time.
-    message: releaseAt
-      ? "Saved — it goes live at the scheduled time."
-      : "Saved.",
+    message: nextStatus === "PENDING" ? "Saved — back with a reviewer." : "Saved.",
   };
 }
 
