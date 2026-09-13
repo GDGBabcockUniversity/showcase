@@ -205,9 +205,6 @@ export default async function FeedPage({
                           {p.department}
                         </span>
                       </span>
-                      <span className="font-mono text-xs text-blue tabular-nums">
-                        {p.signalScore.toFixed(2)}
-                      </span>
                     </Link>
                   </li>
                 ))}

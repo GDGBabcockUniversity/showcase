@@ -10,7 +10,7 @@ import { MAX_TAGS, TAGS } from "@/lib/tags";
 import { auth } from "@/lib/auth";
 import { eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
-import { project, projectContributor, user } from "@/db/schema";
+import { project, projectContributor, projectTag, user } from "@/db/schema";
 import {
   isUploadUrl,
   MAX_COLLABORATORS,
@@ -75,7 +75,6 @@ async function submitProject(_: SubmitState, formData: FormData): Promise<Submit
       title: title.slice(0, TITLE_MAX),
       summary: summary.slice(0, SUMMARY_MAX),
       type: (PROJECT_TYPES as readonly string[]).includes(type) ? type : "",
-      tags: tags.slice(0, MAX_TAGS),
       url,
       cover: isUploadUrl(cover) ? cover : null,
       media: media.filter(isUploadUrl).slice(0, MAX_EXTRA_MEDIA),
@@ -86,6 +85,10 @@ async function submitProject(_: SubmitState, formData: FormData): Promise<Submit
       await db
         .insert(projectContributor)
         .values(draftCollaborators.map((userId) => ({ id: randomUUID(), projectId: id, userId })));
+    }
+    const draftTags = tags.slice(0, MAX_TAGS);
+    if (draftTags.length > 0) {
+      await db.insert(projectTag).values(draftTags.map((tagId) => ({ id: randomUUID(), projectId: id, tagId })));
     }
     redirect(`/project/${id}/edit`);
   }
@@ -150,7 +153,6 @@ async function submitProject(_: SubmitState, formData: FormData): Promise<Submit
     title,
     summary,
     type,
-    tags,
     url: url || "",
     cover,
     media,
@@ -162,6 +164,9 @@ async function submitProject(_: SubmitState, formData: FormData): Promise<Submit
     await db
       .insert(projectContributor)
       .values(collaborators.map((c) => ({ id: randomUUID(), projectId: id, userId: c.id })));
+  }
+  if (tags.length > 0) {
+    await db.insert(projectTag).values(tags.map((tagId) => ({ id: randomUUID(), projectId: id, tagId })));
   }
 
   return {

@@ -8,7 +8,7 @@ import { after } from "next/server";
 import { and, eq, ilike, inArray, ne } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { db } from "@/db";
-import { bookmark, interaction, project, projectContributor, user } from "@/db/schema";
+import { bookmark, interaction, project, projectContributor, projectTag, user } from "@/db/schema";
 import { actorKey, currentClientIp, type Actor } from "@/lib/actor";
 import { recordInteraction } from "@/lib/interactions";
 import { DEPARTMENTS, LEVELS, PROJECT_TYPES } from "@/lib/departments";
@@ -231,6 +231,15 @@ async function setContributors(projectId: string, userIds: string[]) {
   }
 }
 
+// Same replace-wholesale approach as setContributors, for the project_tag
+// many-to-many that replaced the old project.tags jsonb array.
+async function setTags(projectId: string, tagIds: string[]) {
+  await db.delete(projectTag).where(eq(projectTag.projectId, projectId));
+  if (tagIds.length > 0) {
+    await db.insert(projectTag).values(tagIds.map((tagId) => ({ id: randomUUID(), projectId, tagId })));
+  }
+}
+
 // Owner-only. The where clause carries the user id, so a project belonging to
 // someone else matches nothing and updates no rows rather than erroring late.
 export async function updateProject(
@@ -278,7 +287,6 @@ export async function updateProject(
         title: title.slice(0, TITLE_MAX),
         summary: summary.slice(0, SUMMARY_MAX),
         type: (PROJECT_TYPES as readonly string[]).includes(type) ? type : "",
-        tags: tags.slice(0, MAX_TAGS),
         url,
         cover: isUploadUrl(postedCover) ? postedCover : null,
         media: media.filter(isUploadUrl).slice(0, MAX_EXTRA_MEDIA),
@@ -286,6 +294,7 @@ export async function updateProject(
       })
       .where(eq(project.id, projectId));
     await setContributors(projectId, collaboratorIds.slice(0, MAX_COLLABORATORS));
+    await setTags(projectId, tags.slice(0, MAX_TAGS));
     return { ok: true, message: "Draft saved." };
   }
 
@@ -346,9 +355,10 @@ export async function updateProject(
 
   await db
     .update(project)
-    .set({ title, summary, type, tags, url: url || "", cover: postedCover, media, draft: false, status: nextStatus })
+    .set({ title, summary, type, url: url || "", cover: postedCover, media, draft: false, status: nextStatus })
     .where(eq(project.id, projectId));
   await setContributors(projectId, collaborators);
+  await setTags(projectId, tags);
 
   revalidatePath("/", "layout");
   return {

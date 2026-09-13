@@ -66,13 +66,11 @@ export default async function AccountPage() {
       clicks: acc.clicks + p.clicks,
       likes: acc.likes + p.likes,
       comments: acc.comments + p.comments,
-      signal: acc.signal + p.signalScore,
     }),
-    { views: 0, clicks: 0, likes: 0, comments: 0, signal: 0 },
+    { views: 0, clicks: 0, likes: 0, comments: 0 },
   );
 
   const stats: { label: string; value: string }[] = [
-    { label: "Signal", value: totals.signal.toFixed(1) },
     { label: "Views", value: totals.views.toLocaleString() },
     { label: "Clicks", value: totals.clicks.toLocaleString() },
     { label: "Likes", value: totals.likes.toLocaleString() },

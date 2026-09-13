@@ -13,6 +13,16 @@ import {
 import { sql } from "drizzle-orm";
 import { SUMMARY_MAX, TITLE_MAX } from "@/lib/limits";
 
+// Reference table for department — real FK target for user.department and
+// project.department below. The id is the display name itself (a stable
+// natural key already used everywhere), so no existing form/query code that
+// stores or compares that string needed to change — only the database now
+// enforces that it's one of these rows. Seeded from DEPARTMENTS in
+// src/lib/departments.ts.
+export const department = pgTable("department", {
+  id: text("id").primaryKey(),
+});
+
 // better-auth core tables — field names match @better-auth/core's schema
 // (user/session/account/verification), required by the drizzle adapter.
 export const user = pgTable("user", {
@@ -28,7 +38,7 @@ export const user = pgTable("user", {
   // Free text, shown on the public profile. Nullable: nobody is made to write one.
   bio: text("bio"),
   // Collected at sign-up. Nullable: Google sign-ins never pass through that form.
-  department: text("department"),
+  department: text("department").references(() => department.id),
   level: text("level"),
   // "reviewer" | "lead" | null — validated in app code against no fixed list
   // beyond those two values. Granted by hand via `db:studio`; there's no
@@ -74,18 +84,6 @@ export const verification = pgTable("verification", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
-// App-level table for real submissions — backs the feed/home/this-month pages.
-//
-// `draft` is the owner's own half-filled save: it skips validation, is
-// invisible to everyone including reviewers, and has no `status` worth
-// reading yet. Submitting for real (draft -&gt; false) puts the row into the
-// review lifecycle carried by `status`:
-//   PENDING -&gt; PUBLISHED (reviewer approves; publishedAt is stamped once, here)
-//   PENDING -&gt; CHANGES_REQUESTED -&gt; PENDING (owner edits and resubmits)
-//   PENDING -&gt; REJECTED (terminal)
-// `publishedAt` is the cohort-assigning timestamp for signal scoring — it is
-// set exactly once, on the transition into PUBLISHED, and never touched again
-// (so re-reviewing an already-published project can't move its cohort month).
 export const project = pgTable("project", {
   id: text("id").primaryKey(),
   userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
@@ -93,26 +91,37 @@ export const project = pgTable("project", {
   title: varchar("title", { length: TITLE_MAX }).notNull(),
   summary: varchar("summary", { length: SUMMARY_MAX }).notNull(),
   type: text("type").notNull(),
-  // Topic vocabulary from src/lib/tags.ts — what the project is about, up to
-  // MAX_TAGS of them. Same jsonb treatment as media.
-  tags: jsonb("tags").$type<string[]>().notNull().default([]),
   url: text("url").notNull(),
   cover: text("cover"),
   media: jsonb("media").$type<string[]>().notNull().default([]),
-  // Drafts are half-filled saves: they skip validation and stay off every
-  // public list until the owner submits from the edit page.
   draft: boolean("draft").notNull().default(false),
-  // Denormalized from the submitter's user.department at submit time, so
-  // cohort/ranking queries don't need a join back to `user`.
-  department: text("department"),
+  department: text("department").references(() => department.id),
   status: text("status").notNull().default("PENDING"),
   publishedAt: timestamp("published_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
-// Tagged platform users credited on a project, owner excluded. This is what
-// makes self-boost exclusion queryable — a free-text name could never be
-// checked against who's actually interacting.
+// Reference table for tags — id is the existing slug (e.g. "ai"), name is
+// the display label (matches TAG_LABEL in src/lib/tags.ts, which remains the
+// source of truth for the vocabulary and its labels).
+export const tag = pgTable("tag", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+});
+
+// Many-to-many: a project can carry up to MAX_TAGS of these. Replaces the
+// old project.tags jsonb array so tags are a real relationship, not a
+// denormalized blob — a tag can be renamed or looked up from either side.
+export const projectTag = pgTable(
+  "project_tag",
+  {
+    id: text("id").primaryKey(),
+    projectId: text("project_id").notNull().references(() => project.id, { onDelete: "cascade" }),
+    tagId: text("tag_id").notNull().references(() => tag.id, { onDelete: "cascade" }),
+  },
+  (t) => [uniqueIndex("project_tag_project_tag_idx").on(t.projectId, t.tagId)],
+);
+
 export const projectContributor = pgTable(
   "project_contributor",
   {
@@ -124,22 +133,6 @@ export const projectContributor = pgTable(
   (t) => [uniqueIndex("project_contributor_project_user_idx").on(t.projectId, t.userId)],
 );
 
-// One unified event log for every view/click/like/comment — interaction_log
-// (raw IP) and hidden_comment both hang off a row here by id, so every
-// interaction type has to live in the same table rather than being split
-// across four.
-//
-// `fingerprint` plays the role actorKey used to play on the old per-type
-// tables: `user:<id>` when signed in, otherwise a hash of IP + user agent
-// (see src/lib/actor.ts) — never the raw IP itself, which is what
-// interaction_log is for.
-//
-// Likes stay hard-unique per (project, user) via the partial index below.
-// Views/clicks are deduped on a rolling 24h window instead, which a unique
-// index can't express — that's enforced as a query-before-insert check in
-// src/lib/interactions.ts. Comments carry no uniqueness at all: multiple
-// comments per user per project are allowed, and only the first one per user
-// counts toward the comment signal (enforced at scoring time, not write time).
 export const interaction = pgTable(
   "interaction",
   {
@@ -194,10 +187,6 @@ export const signalScore = pgTable(
   (t) => [index("signal_score_cohort_idx").on(t.cohortMonth)],
 );
 
-// Technical-Lead demote overrides for a gamed project. The top-3 query
-// excludes any project with an override row for the current cohort month;
-// the next-highest is promoted simply by re-running the ranking against the
-// filtered set. Every override is logged here, never silently applied.
 export const rankingOverride = pgTable("ranking_override", {
   id: text("id").primaryKey(),
   projectId: text("project_id").notNull().references(() => project.id, { onDelete: "cascade" }),
@@ -225,8 +214,6 @@ export const abuseFlag = pgTable(
   (t) => [uniqueIndex("abuse_flag_project_ip_day_idx").on(t.projectId, t.ip, t.day)],
 );
 
-// One bookmark per (project, user) — a private save-for-later list rather
-// than a public signal, so it feeds no scoring and stays outside `interaction`.
 export const bookmark = pgTable("bookmark", {
   id: text("id").primaryKey(),
   projectId: text("project_id").notNull().references(() => project.id, { onDelete: "cascade" }),

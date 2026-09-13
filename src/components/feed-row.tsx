@@ -10,12 +10,9 @@ type RowProject = {
   department: string;
   type: string;
   comments: number;
-  signalScore: number;
 };
 
 export function FeedRow({ p, rank }: { p: RowProject; rank?: number }) {
-  const score = p.signalScore;
-
   return (
     <Link
       href={`/project/${p.id}`}
@@ -62,9 +59,6 @@ export function FeedRow({ p, rank }: { p: RowProject; rank?: number }) {
           </p>
           <div className="flex items-center gap-3 font-mono text-[11px] text-muted">
             <span>{p.comments} comments</span>
-            <span className="rounded-full bg-blue/10 px-2 py-1 text-blue">
-              {score.toFixed(2)} signal
-            </span>
           </div>
         </div>
       </div>

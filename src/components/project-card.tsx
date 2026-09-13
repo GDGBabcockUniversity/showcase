@@ -20,14 +20,6 @@ export function ProjectCard({ p }: { p: Project }) {
         {p.title}
       </h3>
       <p className="mt-2 text-sm leading-relaxed text-muted">{p.summary}</p>
-      <div className="mt-4 flex items-center justify-between gap-4 border-t border-border pt-3">
-        <span className="font-mono text-[10px] uppercase tracking-wider text-muted">
-          Community signal
-        </span>
-        <span className="font-mono text-xs text-blue">
-          {p.signalScore.toFixed(2)}
-        </span>
-      </div>
     </Link>
   );
 }

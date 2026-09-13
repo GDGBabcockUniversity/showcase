@@ -26,6 +26,7 @@ import { actorKey, currentClientIp } from "@/lib/actor";
 import { TYPE_LABEL } from "@/lib/departments";
 import { TAG_LABEL, type Tag } from "@/lib/tags";
 import { coverGradient } from "@/lib/cover";
+import { formatDistanceToNow } from "date-fns";
 
 export async function generateMetadata({
   params,
@@ -35,9 +36,16 @@ export async function generateMetadata({
   const { id } = await params;
   const project = await getProjectById(id);
   if (!project) return { title: "Project not found" };
+  const title = `${project.title} — GDG Babcock Showcase`;
   return {
-    title: `${project.title} — GDG Babcock Showcase`,
+    title,
     description: project.summary,
+    openGraph: project.cover
+      ? { title, description: project.summary, images: [project.cover] }
+      : undefined,
+    twitter: project.cover
+      ? { card: "summary_large_image", title, description: project.summary, images: [project.cover] }
+      : undefined,
   };
 }
 
@@ -76,7 +84,7 @@ export default async function ProjectPage({
     ...allProjects.filter((i) => i.id !== p.id && i.department !== p.department),
   ].slice(0, 4);
 
-  const slides = [p.cover, ...p.media].filter((src): src is string => !!src);
+  const slides = p.media;
 
   return (
     <>
@@ -87,9 +95,25 @@ export default async function ProjectPage({
         <header className="mt-8 grid gap-8 border-b border-border pb-8 sm:grid-cols-[1fr_auto] sm:items-start">
           <div className="min-w-0">
 
-            <h1 className="mt-3 break-words font-display text-[2.75rem] font-bold leading-[0.95] tracking-tight sm:text-6xl">
-              {p.title}
-            </h1>
+            <div className="mt-3 flex items-center gap-4">
+              {p.cover ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={p.cover}
+                  alt=""
+                  className="h-16 w-16 shrink-0 rounded-xl border border-border object-cover sm:h-20 sm:w-20"
+                />
+              ) : (
+                <div
+                  className="h-16 w-16 shrink-0 rounded-xl sm:h-20 sm:w-20"
+                  style={{ background: coverGradient(p.title) }}
+                  aria-hidden
+                />
+              )}
+              <h1 className="min-w-0 break-words font-display text-[2.75rem] font-bold leading-[0.95] tracking-tight sm:text-6xl">
+                {p.title}
+              </h1>
+            </div>
             <div className="mt-6">
               <p className="font-mono text-[10px] uppercase tracking-wider text-muted">
                 Shipped by
@@ -131,13 +155,13 @@ export default async function ProjectPage({
               size="lg"
             />
             <div className="flex items-center gap-2">
+              <VisitLink id={p.id} url={p.url} />
               <BookmarkButton
                 key={`${p.id}-${savedIds.has(p.id)}`}
                 id={p.id}
                 saved={savedIds.has(p.id)}
                 size="lg"
               />
-              <VisitLink id={p.id} url={p.url} />
             </div>
             {isOwner && (
               <Link
@@ -152,25 +176,16 @@ export default async function ProjectPage({
         <div className="mt-10 grid gap-10 lg:grid-cols-[minmax(0,1fr)_320px]">
           {/* Left column */}
           <div className="min-w-0">
-            {/* Cover cell — framed like a film cell */}
-            <figure id="overview">
-              <div className="flex items-center justify-between font-mono text-[10px] uppercase tracking-wider text-muted">
-                <span>{"// media"}</span>
-                <span>{String(slides.length || 1).padStart(2, "0")} total</span>
-              </div>
-              {/* Cover first, then any extra media — one image per slide. The
-                  gradient stands in for projects filed before covers were
-                  required. */}
-              {slides.length > 0 ? (
+            {/* Gallery — extra media only; the cover shows by the title instead. */}
+            {slides.length > 0 && (
+              <figure id="overview">
+                <div className="flex items-center justify-between font-mono text-[10px] uppercase tracking-wider text-muted">
+                  <span>{"// media"}</span>
+                  <span>{String(slides.length).padStart(2, "0")} total</span>
+                </div>
                 <MediaSlider images={slides} title={p.title} />
-              ) : (
-                <div
-                  className="mt-2 aspect-[16/9] w-full rounded-2xl"
-                  style={{ background: coverGradient(p.title) }}
-                  aria-hidden
-                />
-              )}
-            </figure>
+              </figure>
+            )}
 
             {/* About */}
             <section className="mt-12">
@@ -236,8 +251,8 @@ export default async function ProjectPage({
                             >
                               {c.by}
                             </Link>
-                            <p className="font-mono text-[10px] uppercase tracking-wider text-muted">
-                              {c.createdAt.toLocaleDateString()}
+                            <p className="font-mono text-[10px] tracking-wider text-muted">
+                              {formatDistanceToNow(c.createdAt, { addSuffix: true })}
                             </p>
                           </div>
                           <p className="mt-1.5 break-words text-sm leading-relaxed text-muted">{c.body}</p>
@@ -284,11 +299,6 @@ export default async function ProjectPage({
                           {item.department} · {TYPE_LABEL[item.type]}
                         </span>
                       </span>
-                      <span className="flex items-center gap-3">
-                        <span className="w-10 text-right font-mono text-xs text-blue tabular-nums">
-                          {item.signalScore.toFixed(2)}
-                        </span>
-                      </span>
                     </Link>
                   </li>
                 ))}
@@ -311,16 +321,6 @@ export default async function ProjectPage({
               <p className="mt-3 font-mono text-[11px] uppercase tracking-wider text-muted">
                 Ranked by last night&apos;s signal score.
               </p>
-              <div className="mt-5 border-t border-border pt-4">
-                <p className="font-mono text-[10px] uppercase tracking-wider text-muted">
-                  Signal
-                </p>
-                <div className="mt-2 flex items-center justify-between gap-3">
-                  <span className="font-display text-2xl font-semibold tabular-nums">
-                    {p.signalScore.toFixed(2)}
-                  </span>
-                </div>
-              </div>
             </div>
 
             {/* Meta rail */}

@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
 import { LuMessageCircle } from "react-icons/lu";
-import { UpvotePill } from "@/components/upvote-pill";
 import { UpvoteButton } from "@/components/upvote-button";
 import { BookmarkButton } from "@/components/bookmark-button";
 import { coverGradient } from "@/lib/cover";
@@ -18,6 +17,7 @@ type RowProject = {
   likes: number;
   createdAt: Date;
   signalScore: number;
+  cover: string | null;
 };
 
 export function ProductRow({
@@ -31,12 +31,6 @@ export function ProductRow({
   liked?: boolean;
   saved?: boolean;
 }) {
-  const score = p.signalScore;
-
-  // Mobile stacks: identity on one line, actions underneath — the single row
-  // left the title column about 100px wide and broke the meta line onto one
-  // word per line. `sm:contents` dissolves the wrapper on wider screens so the
-  // same children slot straight into the grid.
   return (
     <Link
       href={`/project/${p.id}`}
@@ -53,11 +47,16 @@ export function ProductRow({
 
         <div
           className="relative flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-lg text-white sm:h-16 sm:w-16"
-          style={{ background: coverGradient(p.title) }}
+          style={p.cover ? undefined : { background: coverGradient(p.title) }}
         >
-          <span className="font-display text-2xl font-semibold tracking-tight sm:text-3xl">
-            {p.title[0]}
-          </span>
+          {p.cover ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={p.cover} alt="" className="h-full w-full object-cover" />
+          ) : (
+            <span className="font-display text-2xl font-semibold tracking-tight sm:text-3xl">
+              {p.title[0]}
+            </span>
+          )}
         </div>
 
         <div className="min-w-0">
@@ -70,7 +69,7 @@ export function ProductRow({
               {p.summary}
             </p>
           </div>
-          <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-[10px] uppercase tracking-wider text-muted sm:gap-x-3 sm:text-[11px]">
+          <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-[10px]  tracking-wider text-muted sm:gap-x-3 sm:text-[11px]">
             <span className="truncate">by {p.by}</span>
             <span aria-hidden>·</span>
             <span className="truncate">{p.department}</span>
@@ -104,7 +103,6 @@ export function ProductRow({
       <div className="flex items-center justify-end gap-2">
         <BookmarkButton key={`${p.id}-${!!saved}`} id={p.id} saved={!!saved} />
         <UpvoteButton key={`${p.id}-${!!liked}-${p.likes}`} id={p.id} initial={p.likes} liked={!!liked} />
-        <UpvotePill signal={score} />
       </div>
     </Link>
   );

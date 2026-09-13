@@ -6,6 +6,7 @@ import {
   interaction,
   project,
   projectContributor,
+  projectTag,
   rankingOverride,
   signalScore,
   user,
@@ -47,7 +48,6 @@ const projectColumns = {
   // so every display site can keep treating it as a plain string.
   department: sql<string>`coalesce(${project.department}, 'Unfiled')`,
   type: project.type,
-  tags: project.tags,
   url: project.url,
   cover: project.cover,
   media: project.media,
@@ -65,7 +65,6 @@ type ProjectRow = {
   summary: string;
   department: string;
   type: string;
-  tags: string[];
   url: string;
   cover: string | null;
   media: string[];
@@ -95,6 +94,24 @@ async function countFor(type: InteractionType, projectId: string) {
   return Number(rows[0]?.count ?? 0);
 }
 
+// Grouped tag ids across every project in one query — mirrors countsByProject.
+async function tagsByProject() {
+  const rows = await db.select({ projectId: projectTag.projectId, tagId: projectTag.tagId }).from(projectTag);
+  const map = new Map<string, string[]>();
+  for (const r of rows) {
+    const list = map.get(r.projectId) ?? [];
+    list.push(r.tagId);
+    map.set(r.projectId, list);
+  }
+  return map;
+}
+
+// Single-project tag ids — cheaper than the grouped query for one id.
+async function tagsFor(projectId: string): Promise<string[]> {
+  const rows = await db.select({ tagId: projectTag.tagId }).from(projectTag).where(eq(projectTag.projectId, projectId));
+  return rows.map((r) => r.tagId);
+}
+
 // signal_score has at most one row per project (materialized nightly) — a
 // project that hasn't had a batch run yet simply shows 0, same as a project
 // with genuinely no signal.
@@ -112,12 +129,13 @@ async function signalScoreFor(projectId: string): Promise<number> {
 }
 
 async function attachSignal(rows: ProjectRow[]): Promise<Project[]> {
-  const [views, clicks, likes, comments, scores] = await Promise.all([
+  const [views, clicks, likes, comments, scores, tags] = await Promise.all([
     countsByProject("view"),
     countsByProject("click"),
     countsByProject("like"),
     countsByProject("comment"),
     allSignalScores(),
+    tagsByProject(),
   ]);
   return rows.map((r) => ({
     ...r,
@@ -128,6 +146,7 @@ async function attachSignal(rows: ProjectRow[]): Promise<Project[]> {
     likes: likes.get(r.id) ?? 0,
     comments: comments.get(r.id) ?? 0,
     signalScore: scores.get(r.id) ?? 0,
+    tags: tags.get(r.id) ?? [],
   }));
 }
 
@@ -154,12 +173,13 @@ export async function getProjectById(id: string): Promise<Project | undefined> {
   const row = rows[0];
   if (!row) return undefined;
 
-  const [views, clicks, likes, comments, score] = await Promise.all([
+  const [views, clicks, likes, comments, score, tags] = await Promise.all([
     countFor("view", id),
     countFor("click", id),
     countFor("like", id),
     countFor("comment", id),
     signalScoreFor(id),
+    tagsFor(id),
   ]);
 
   return {
@@ -171,6 +191,7 @@ export async function getProjectById(id: string): Promise<Project | undefined> {
     likes,
     comments,
     signalScore: score,
+    tags,
   };
 }
 
@@ -404,7 +425,9 @@ export async function getOwnedProject(id: string, userId: string) {
     .select()
     .from(project)
     .where(and(eq(project.id, id), eq(project.userId, userId)));
-  return rows[0];
+  const row = rows[0];
+  if (!row) return undefined;
+  return { ...row, tags: await tagsFor(id) };
 }
 
 export type ProjectComment = {

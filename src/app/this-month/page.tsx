@@ -65,13 +65,6 @@ function Winner({
       <p className="mt-4 font-mono text-[10px] uppercase tracking-wider text-muted">
         by {p.by}
       </p>
-      <p
-        className="mt-3 font-display text-2xl font-semibold tabular-nums sm:text-3xl"
-        style={{ color }}
-      >
-        {p.signalScore.toFixed(2)}
-      </p>
-      <p className="font-mono text-[10px] uppercase tracking-wider text-muted">Signal</p>
     </Link>
   );
 }

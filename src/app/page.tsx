@@ -148,9 +148,6 @@ export default async function Home() {
                         {maker.department ? ` · ${maker.department}` : ""}
                       </span>
                     </span>
-                    <span className="font-mono text-xs text-blue tabular-nums">
-                      {maker.signal.toFixed(0)}
-                    </span>
                   </li>
                 ))}
               </ol>
