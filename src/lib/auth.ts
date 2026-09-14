@@ -22,8 +22,10 @@ export const auth = betterAuth({
       department: { type: "string", required: false, input: true },
       level: { type: "string", required: false, input: true },
       username: { type: "string", required: false, input: true },
-      // "reviewer" | "lead" | null — granted by hand, never through signup.
-      role: { type: "string", required: false, input: false },
+      // USER | REVIEWER | ADMIN — a real Postgres enum (see roleEnum in
+      // src/db/schema.ts). REVIEWER/ADMIN are granted by hand, never
+      // through signup; the DB column itself defaults to USER too.
+      role: { type: "string", required: false, input: false, defaultValue: "USER" },
     },
   },
   databaseHooks: {

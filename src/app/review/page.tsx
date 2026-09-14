@@ -30,7 +30,7 @@ async function getQueue() {
 }
 
 export default async function ReviewPage() {
-  await requireRole("reviewer");
+  await requireRole("REVIEWER");
   const [queue, topThree] = await Promise.all([getQueue(), getTopThreeProjects()]);
 
   return (
