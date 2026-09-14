@@ -1,5 +1,6 @@
 import {
   pgTable,
+  pgEnum,
   text,
   varchar,
   timestamp,
@@ -13,12 +14,8 @@ import {
 import { sql } from "drizzle-orm";
 import { SUMMARY_MAX, TITLE_MAX } from "@/lib/limits";
 
-// Reference table for department — real FK target for user.department and
-// project.department below. The id is the display name itself (a stable
-// natural key already used everywhere), so no existing form/query code that
-// stores or compares that string needed to change — only the database now
-// enforces that it's one of these rows. Seeded from DEPARTMENTS in
-// src/lib/departments.ts.
+export const roleEnum = pgEnum("role", ["USER", "REVIEWER", "ADMIN"]);
+
 export const department = pgTable("department", {
   id: text("id").primaryKey(),
 });
@@ -40,10 +37,9 @@ export const user = pgTable("user", {
   // Collected at sign-up. Nullable: Google sign-ins never pass through that form.
   department: text("department").references(() => department.id),
   level: text("level"),
-  // "reviewer" | "lead" | null — validated in app code against no fixed list
-  // beyond those two values. Granted by hand via `db:studio`; there's no
-  // self-serve path to become one.
-  role: text("role"),
+  // Granted by hand via `db:studio`; there's no self-serve path to become a
+  // REVIEWER or ADMIN.
+  role: roleEnum("role").notNull().default("USER"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });

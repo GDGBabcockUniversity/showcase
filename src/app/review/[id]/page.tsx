@@ -32,7 +32,7 @@ async function getReviewTarget(id: string) {
 }
 
 export default async function ReviewProjectPage({ params }: { params: Promise<{ id: string }> }) {
-  const session = await requireRole("reviewer");
+  const session = await requireRole("REVIEWER");
   const { id } = await params;
 
   const target = await getReviewTarget(id);
@@ -119,7 +119,7 @@ export default async function ReviewProjectPage({ params }: { params: Promise<{ 
           </p>
         </section>
 
-        {role === "lead" && (
+        {role === "ADMIN" && (
           <section className="mt-8 border-t border-red/30 pt-8">
             <p className="eyebrow text-red">Technical Lead override</p>
             <p className="mt-2 text-sm text-muted">

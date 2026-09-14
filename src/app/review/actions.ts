@@ -15,7 +15,7 @@ export async function setProjectStatus(
   projectId: string,
   status: string,
 ): Promise<ReviewState> {
-  await requireRole("reviewer");
+  await requireRole("REVIEWER");
 
   if (!(PROJECT_STATUSES as readonly string[]).includes(status)) {
     return { ok: false, error: "Not a real status." };
@@ -43,7 +43,7 @@ export async function setProjectStatus(
 // next-highest project is promoted simply because getTopThreeProjects()
 // filters this project out of the current cohort's ranking.
 export async function demoteProject(projectId: string, reason: string): Promise<ReviewState> {
-  const session = await requireRole("lead");
+  const session = await requireRole("ADMIN");
 
   if (reason.trim().length < 5) {
     return { ok: false, error: "Say why, briefly." };
