@@ -9,8 +9,8 @@ import { SearchBox } from "@/components/search-box";
 
 const LINKS = [
   { href: "/", label: "Home" },
-  { href: "/feed", label: "Feed" },
   { href: "/this-month", label: "This Month" },
+  { href: "/archive", label: "Archive" },
   { href: "/submit", label: "Submit" },
 ];
 

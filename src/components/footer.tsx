@@ -33,8 +33,8 @@ export function Footer() {
           <span>GDG on Campus Babcock</span>
         </div>
         <div className="flex flex-wrap items-center gap-4">
-          <Link href="/feed" className="hover:text-fg">
-            Feed
+          <Link href="/" className="hover:text-fg">
+            Home
           </Link>
           <Link href="/this-month" className="hover:text-fg">
             This Month

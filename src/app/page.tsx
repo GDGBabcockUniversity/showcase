@@ -1,26 +1,104 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { headers } from "next/headers";
 import { Nav } from "@/components/nav";
 import { Footer } from "@/components/footer";
 import { Dots } from "@/components/dots";
 import { ProductRow } from "@/components/product-row";
-import { getAllProjects, getBookmarkedProjectIds,
-  getLikedProjectIds, getTopMakers } from "@/lib/projects";
+import { ExpandableProjectList } from "@/components/expandable-project-list";
+import { DepartmentSelect } from "@/components/department-select";
+import {
+  getAllProjects,
+  getBookmarkedProjectIds,
+  getLikedProjectIds,
+  getTopThreeProjects,
+  THIS_MONTH_LABEL,
+} from "@/lib/projects";
 import { auth } from "@/lib/auth";
-import { PROJECT_TYPES, TYPE_LABEL } from "@/lib/departments";
+import {
+  DEPARTMENTS,
+  PROJECT_TYPES,
+  TYPE_LABEL,
+  type ProjectType,
+} from "@/lib/departments";
+import { TAGS, TAG_LABEL, type Tag } from "@/lib/tags";
+import { ENGAGEMENT_WEIGHTS } from "@/lib/signal-scores";
+import { FEED_BUCKETS, feedBucket } from "@/lib/when";
 
-export default async function Home() {
+export const metadata: Metadata = {
+  title: "GDG Babcock Showcase",
+  description:
+    "Every student project on the board, ranked by real community interaction.",
+};
+
+type Search = { type?: string; dept?: string; tag?: string };
+type Department = (typeof DEPARTMENTS)[number];
+
+function isType(v: string | undefined): v is ProjectType {
+  return !!v && (PROJECT_TYPES as readonly string[]).includes(v);
+}
+function isDept(v: string | undefined): v is Department {
+  return !!v && (DEPARTMENTS as readonly string[]).includes(v);
+}
+function isTag(v: string | undefined): v is Tag {
+  return !!v && (TAGS as readonly string[]).includes(v);
+}
+
+const chipClass = (active: boolean) =>
+  `rounded-full border px-3 py-1 text-xs transition-colors ${
+    active
+      ? "border-blue bg-blue/10 text-blue"
+      : "border-border text-muted hover:border-fg hover:text-fg"
+  }`;
+
+export default async function Home({
+  searchParams,
+}: {
+  searchParams: Promise<Search>;
+}) {
+  const sp = await searchParams;
+  const typeFilter = isType(sp.type) ? sp.type : undefined;
+  const deptFilter = isDept(sp.dept) ? sp.dept : undefined;
+  const tagFilter = isTag(sp.tag) ? sp.tag : undefined;
+
   const session = await auth.api.getSession({ headers: await headers() });
-  const [projects, likedIds, savedIds, makers] = await Promise.all([
+  const [projects, likedIds, savedIds] = await Promise.all([
     getAllProjects(),
     session ? getLikedProjectIds(session.user.id) : Promise.resolve(new Set<string>()),
     session ? getBookmarkedProjectIds(session.user.id) : Promise.resolve(new Set<string>()),
-    getTopMakers(),
   ]);
-  const ranked = [...projects].sort((a, b) => b.signalScore - a.signalScore);
-  const today = ranked.slice(0, 5);
-  const thisWeek = ranked.slice(5, 8);
+  const filtered = projects
+    .filter((p) => !typeFilter || p.type === typeFilter)
+    .filter((p) => !deptFilter || p.department === deptFilter)
+    .filter((p) => !tagFilter || p.tags.includes(tagFilter));
 
+  const lastTopThree = await getTopThreeProjects()
+  const ranked = [...filtered].sort((a, b) => b.signalScore - a.signalScore);
+
+  // The board only ever shows the current calendar month — anything older
+  // has aged out to /archive. Fixed bucket order (not insertion order), so
+  // "This week" always leads even if it's empty and "Last week" isn't; the
+  // signal ranking is preserved inside each band. Each section only shows
+  // its first 5 up front — ExpandableProjectList reveals the rest on click.
+  const groups = FEED_BUCKETS.map((label) => ({
+    label,
+    items: ranked.filter((p) => feedBucket(p.createdAt) === label),
+  })).filter((g) => g.items.length > 0);
+  const olderCount = filtered.length - groups.reduce((n, g) => n + g.items.length, 0);
+
+  const trending = ranked.slice(0, 5);
+  const likedArr = [...likedIds];
+  const savedArr = [...savedIds];
+
+  const hrefFor = (next: Partial<Search>) => {
+    const merged = { type: typeFilter, dept: deptFilter, tag: tagFilter, ...next };
+    const params = new URLSearchParams();
+    if (merged.type) params.set("type", merged.type);
+    if (merged.dept) params.set("dept", merged.dept);
+    if (merged.tag) params.set("tag", merged.tag);
+    const qs = params.toString();
+    return qs ? `/?${qs}` : "/";
+  };
 
   return (
     <>
@@ -30,138 +108,150 @@ export default async function Home() {
           <div>
             <p className="eyebrow flex items-center gap-3">
               <Dots />
+              The board
             </p>
             <h1 className="mt-4 font-display text-4xl font-bold leading-[0.95] tracking-tight sm:text-5xl">
-              What Babcock shipped today.
+              Every project, ranked by signal.
             </h1>
             <p className="mt-3 max-w-xl text-sm leading-relaxed text-muted sm:text-base">
-              A ranked feed of student projects, sorted by real community
-              interaction. Upvotes are weighted views, clicks, likes, and
-              comments — not a single tap.
+              What Babcock students shipped this month, ordered by the
+              weighted interaction of the campus community.
             </p>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <Link
-              href="/feed"
-              className="inline-flex items-center gap-2 rounded-full border border-border px-5 py-2.5 text-sm text-fg hover:bg-surface"
-            >
-              Browse all
-            </Link>
-          </div>
         </section>
-        
-        <div className="mt-6 flex flex-wrap items-center gap-2">
+
+        {/* Filter bar */}
+        <div className="mt-6 flex flex-col gap-3 border-b border-border pb-6 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="pr-1 font-mono text-[10px] uppercase tracking-wider text-muted">
+              Categories
+            </span>
+            <Link href={hrefFor({ type: undefined })} className={chipClass(!typeFilter)}>
+              All
+            </Link>
+            {PROJECT_TYPES.map((t) => (
+              <Link key={t} href={hrefFor({ type: t })} className={chipClass(typeFilter === t)}>
+                {TYPE_LABEL[t]}
+              </Link>
+            ))}
+          </div>
+          <DepartmentSelect current={deptFilter} />
+        </div>
+
+        <div className="mt-4 flex flex-wrap items-center gap-2 border-b border-border pb-6">
           <span className="pr-1 font-mono text-[10px] uppercase tracking-wider text-muted">
-            Categories
+            Topics
           </span>
-          <Link
-            href="/feed"
-            className="rounded-full border border-blue bg-blue/10 px-3 py-1 text-xs text-blue"
-          >
+          <Link href={hrefFor({ tag: undefined })} className={chipClass(!tagFilter)}>
             All
           </Link>
-          {PROJECT_TYPES.map((t) => (
-            <Link
-              key={t}
-              href={`/feed?type=${t}`}
-              className="rounded-full border border-border px-3 py-1 text-xs text-muted hover:border-fg hover:text-fg"
-            >
-              {TYPE_LABEL[t]}
+          {TAGS.map((t) => (
+            <Link key={t} href={hrefFor({ tag: t })} className={chipClass(tagFilter === t)}>
+              {TAG_LABEL[t]}
             </Link>
           ))}
         </div>
 
         <div className="mt-8 grid gap-10 lg:grid-cols-[minmax(0,1fr)_280px]">
-          {/* Main feed column */}
+          {/* Grouped board */}
           <div className="min-w-0">
-            <div className="flex items-baseline justify-between border-b border-border pb-3">
-              <div>
-                <p className="eyebrow">Today · top 5</p>
-                <h2 className="mt-1 font-display text-xl font-semibold tracking-tight">
-                  Ranked by community signal
-                </h2>
+            {filtered.length === 0 ? (
+              <p className="rounded-2xl border border-border bg-surface py-12 text-center text-muted">
+                Nothing on the board for that filter.
+              </p>
+            ) : groups.length === 0 ? (
+              <div className="rounded-2xl border border-border bg-surface py-12 text-center text-muted">
+                <p>Nothing shipped this month for that filter.</p>
+                <Link href="/archive" className="mt-2 inline-block text-sm text-blue hover:underline">
+                  Browse the archive →
+                </Link>
               </div>
-              <Link href="/feed" className="text-xs text-blue hover:underline">
-                See all →
-              </Link>
-            </div>
-            <div>
-              {today.map((p, i) => (
-                <ProductRow key={p.id} p={p} rank={i + 1} liked={likedIds.has(p.id)} saved={savedIds.has(p.id)} />
-              ))}
-            </div>
+            ) : (
+              groups.map((g, gi) => (
+                <div key={g.label} className={gi > 0 ? "mt-10" : ""}>
+                  <div className="flex items-baseline justify-between border-b border-border pb-3">
+                    <p className="eyebrow">{g.label}</p>
+                    <span className="font-mono text-[10px] uppercase tracking-wider text-muted">
+                      {g.items.length} launch{g.items.length === 1 ? "" : "es"}
+                    </span>
+                  </div>
+                  <ExpandableProjectList projects={g.items} likedIds={likedArr} savedIds={savedArr} />
+                </div>
+              ))
+            )}
 
-            <div className="mt-10 flex items-baseline justify-between border-b border-border pb-3">
-              <div>
-                <p className="eyebrow">This week</p>
-                <h2 className="mt-1 font-display text-xl font-semibold tracking-tight">
-                  Also worth a look
-                </h2>
-              </div>
-              <Link href="/feed" className="text-xs text-blue hover:underline">
-                Full week →
-              </Link>
-            </div>
-            <div>
-              {thisWeek.map((p, i) => (
-                <ProductRow key={p.id} p={p} rank={i + 6} liked={likedIds.has(p.id)} saved={savedIds.has(p.id)} />
-              ))}
-            </div>
+            {olderCount > 0 && (
+              <p className="mt-8 text-center text-sm text-muted">
+                {olderCount} more project{olderCount === 1 ? "" : "s"} from before this month —{" "}
+                <Link href="/archive" className="text-blue hover:underline">
+                  browse the archive →
+                </Link>
+              </p>
+            )}
           </div>
 
           {/* Sidebar */}
           <aside className="flex flex-col gap-5">
-            <div className="rounded-2xl border border-border bg-surface p-5">
-              <div className="flex items-center justify-between">
-                <p className="eyebrow">Top makers</p>
-                <span className="font-mono text-[10px] uppercase tracking-wider text-muted">
-                  this month
-                </span>
+            <div id="signal-model" className="rounded-2xl border border-border bg-surface p-5">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="eyebrow">Trending</p>
+                  <h2 className="mt-1 font-display text-lg font-semibold">
+                    Top signal right now
+                  </h2>
+                </div>
+                <span className="h-2 w-2 rounded-full bg-green" />
               </div>
-              {makers.length === 0 && (
-                <p className="mt-4 text-sm text-muted">
-                  Nobody has shipped yet this month.
-                </p>
-              )}
               <ol className="mt-4 space-y-3">
-                {makers.map((maker, i) => (
-                  <li key={maker.userId} className="flex items-center gap-3">
-                    <span className="w-4 shrink-0 text-center font-mono text-xs text-muted tabular-nums">
-                      {i + 1}
-                    </span>
-                    <span
-                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full font-display text-sm font-semibold text-white"
-                      style={{
-                        background:
-                          "linear-gradient(135deg, var(--color-blue), var(--color-green))",
-                      }}
-                      aria-hidden
+                {trending.map((p, i) => (
+                  <li key={p.id}>
+                    <Link
+                      href={`/project/${p.id}`}
+                      className="group flex items-center gap-3"
                     >
-                      {maker.name[0]}
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-medium">
-                        {maker.name}
+                      <span className="w-4 shrink-0 text-center font-mono text-xs text-muted tabular-nums">
+                        {i + 1}
                       </span>
-                      <span className="block truncate font-mono text-[11px] text-muted">
-                        {maker.projects} project{maker.projects > 1 ? "s" : ""}
-                        {maker.department ? ` · ${maker.department}` : ""}
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-medium group-hover:text-blue">
+                          {p.title}
+                        </span>
+                        <span className="block truncate font-mono text-[11px] text-muted">
+                          {p.department}
+                        </span>
                       </span>
-                    </span>
+                    </Link>
                   </li>
                 ))}
               </ol>
             </div>
 
+            <div className="rounded-2xl border border-border bg-surface p-5">
+              <p className="eyebrow">How ranking works</p>
+              <p className="mt-3 text-sm leading-relaxed text-muted">
+                Every interaction pays a different rate. Clicks pay most —
+                someone opened the link.
+              </p>
+              <div className="mt-4 grid grid-cols-4 gap-2 border-t border-border pt-3">
+                {Object.entries(ENGAGEMENT_WEIGHTS).map(([label, weight]) => (
+                  <div key={label}>
+                    <p className="font-mono text-[10px] uppercase tracking-wider text-muted">
+                      {label}
+                    </p>
+                    <p className="mt-1 font-mono text-xs font-semibold">
+                      {Math.round(weight * 100)}%
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
             <div className="rounded-2xl border border-blue/25 bg-blue/5 p-5">
               <p className="eyebrow">Launching next</p>
-              <p className="mt-2 font-display text-lg font-semibold">
-                Put your project on tomorrow&apos;s board.
+              <p className="mt-2 font-display text-base font-semibold">
+                Ship your project?
               </p>
-              <p className="mt-2 text-sm text-muted">
-                Under five minutes to file: a link, a two-line summary, a
-                department.
-              </p>
+              <p className="mt-1 text-sm text-muted">Put it on tomorrow&apos;s board.</p>
               <Link
                 href="/submit"
                 className="mt-4 inline-flex w-full items-center justify-center rounded-full bg-blue px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90"
@@ -169,22 +259,27 @@ export default async function Home() {
                 Submit a project
               </Link>
             </div>
-
-            <div className="rounded-2xl border border-border bg-surface p-5">
-              <p className="eyebrow">The signal model</p>
-              <p className="mt-3 text-sm leading-relaxed text-muted">
-                Clicks are weighted highest — someone opened the link. Then
-                likes, then comments, then views. Read the full formula.
-              </p>
-              <Link
-                href="/signal-model"
-                className="mt-4 inline-flex items-center gap-2 text-sm text-blue hover:underline"
-              >
-                How ranking works →
-              </Link>
-            </div>
           </aside>
         </div>
+
+        {!typeFilter && !deptFilter && !tagFilter && lastTopThree.length > 0 ? (
+          <section className="mt-12">
+            <div className="flex items-baseline justify-between border-b border-border pb-3">
+              <div>
+                <p className="eyebrow">{THIS_MONTH_LABEL}</p>
+                <h2 className="mt-1 font-display text-xl font-semibold tracking-tight">
+                  Top 3 of the month
+                </h2>
+              </div>
+              <Link href="/this-month" className="text-xs text-blue hover:underline">
+                This month&apos;s picks →
+              </Link>
+            </div>
+            {lastTopThree.map((p, i) => (
+              <ProductRow key={p.id} p={p} rank={i + 1} liked={likedIds.has(p.id)} saved={savedIds.has(p.id)} />
+            ))}
+          </section>
+        ) : null}
       </main>
       <Footer />
     </>
