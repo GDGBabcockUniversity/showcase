@@ -136,7 +136,7 @@ export default async function SearchPage({
                 : "Type something into the search box above."}
             </p>
             <Link
-              href="/feed"
+              href="/"
               className="mt-6 font-mono text-[11px] uppercase tracking-wider text-blue hover:underline"
             >
               Browse the whole board →

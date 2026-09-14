@@ -1,4 +1,4 @@
-import { and, count, desc, eq, gte, ilike, inArray, isNull, or, sql } from "drizzle-orm";
+import { and, count, desc, eq, gte, ilike, inArray, isNotNull, isNull, lt, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   bookmark,
@@ -16,7 +16,7 @@ import type { ProjectType } from "@/lib/departments";
 import type { Interactions, InteractionType } from "@/lib/interaction-types";
 import type { ProjectStatus } from "@/lib/project-status";
 import { recordInteraction } from "@/lib/interactions";
-import { cohortMonthOf, firstCommentCounts } from "@/lib/signal-scores";
+import { cohortBounds, cohortMonthOf, firstCommentCounts } from "@/lib/signal-scores";
 
 export type Project = {
   id: string;
@@ -243,6 +243,59 @@ export async function getTopThreeProjects(): Promise<Project[]> {
   const ordered = orderedIds.map((id) => byId.get(id)).filter((r): r is ProjectRow => !!r);
 
   return attachSignal(ordered);
+}
+
+// Backs /archive — every published project whose publishedAt falls in the
+// given "YYYY-MM" cohort month, same bounds the scoring pipeline uses.
+export async function getProjectsByCohortMonth(cohortMonth: string): Promise<Project[]> {
+  const { start, end } = cohortBounds(cohortMonth);
+  const rows = await db
+    .select(projectColumns)
+    .from(project)
+    .innerJoin(user, eq(project.userId, user.id))
+    .where(and(eq(project.status, "PUBLISHED"), gte(project.publishedAt, start), lt(project.publishedAt, end)));
+  return attachSignal(rows);
+}
+
+const ARCHIVE_PAGE_SIZE = 20;
+
+export type ArchivePage = { projects: Project[]; nextCursor: string | null };
+
+// Cursor-paginated browse of everything published before the current
+// calendar month, newest first — backs the archive's infinite scroll when
+// no specific month/year is picked. The cursor is the last row's
+// publishedAt ISO string; each page fetches one extra row to know whether
+// there's more without a separate count query.
+export async function getArchivedProjectsPage(cursor?: string | null): Promise<ArchivePage> {
+  const { start: currentMonthStart } = cohortBounds(cohortMonthOf(new Date()));
+  const before = cursor ? new Date(cursor) : currentMonthStart;
+
+  const rows = await db
+    .select(projectColumns)
+    .from(project)
+    .innerJoin(user, eq(project.userId, user.id))
+    .where(and(eq(project.status, "PUBLISHED"), lt(project.publishedAt, before)))
+    .orderBy(desc(project.publishedAt))
+    .limit(ARCHIVE_PAGE_SIZE + 1);
+
+  const hasMore = rows.length > ARCHIVE_PAGE_SIZE;
+  const page = rows.slice(0, ARCHIVE_PAGE_SIZE);
+  const projects = await attachSignal(page);
+  const last = page[page.length - 1];
+  const nextCursor = hasMore && last?.publishedAt ? last.publishedAt.toISOString() : null;
+
+  return { projects, nextCursor };
+}
+
+// Every cohort month that actually has a published project, newest first —
+// powers the archive's "browse by month" shortcuts.
+export async function getPublishedCohortMonths(): Promise<string[]> {
+  const rows = await db
+    .selectDistinct({ month: sql<string>`to_char(${project.publishedAt}, 'YYYY-MM')` })
+    .from(project)
+    .where(and(eq(project.status, "PUBLISHED"), isNotNull(project.publishedAt)))
+    .orderBy(desc(sql`to_char(${project.publishedAt}, 'YYYY-MM')`));
+  return rows.map((r) => r.month);
 }
 
 // Owner first, then tagged contributors. Used by the project page to link

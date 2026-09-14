@@ -277,7 +277,7 @@ export default async function ProjectPage({
                     Next to look at
                   </h2>
                 </div>
-                <Link href="/feed" className="font-mono text-[11px] uppercase tracking-wider text-blue hover:underline">
+                <Link href="/" className="font-mono text-[11px] uppercase tracking-wider text-blue hover:underline">
                   All projects →
                 </Link>
               </div>

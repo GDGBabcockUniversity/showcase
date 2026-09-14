@@ -178,7 +178,7 @@ export default async function AccountPage() {
               empty={
                 <EmptyState
                   text="You haven't liked anything yet."
-                  href="/feed"
+                  href="/"
                   cta="Browse the board →"
                 />
               }
@@ -192,7 +192,7 @@ export default async function AccountPage() {
               empty={
                 <EmptyState
                   text="You haven't saved anything yet."
-                  href="/feed"
+                  href="/"
                   cta="Find something to save →"
                 />
               }
