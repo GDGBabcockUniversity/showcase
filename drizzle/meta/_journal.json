@@ -8,6 +8,20 @@
       "when": 1788715239960,
       "tag": "0000_puzzling_redwing",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1789481306126,
+      "tag": "0001_add-project-tags",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1789696893858,
+      "tag": "0002_add-comment-upvotes",
+      "breakpoints": true
     }
   ]
 }

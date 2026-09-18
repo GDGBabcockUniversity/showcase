@@ -135,3 +135,14 @@ export const comment = pgTable("comment", {
   body: text("body").notNull(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
+
+// Comment appreciation is deliberately separate from project signal. It is
+// displayed on comments but never included in project ranking.
+export const commentUpvote = pgTable("comment_upvote", {
+  id: text("id").primaryKey(),
+  commentId: text("comment_id").notNull().references(() => comment.id, { onDelete: "cascade" }),
+  userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("comment_upvote_comment_user_idx").on(t.commentId, t.userId),
+]);

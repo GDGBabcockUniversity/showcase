@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { and, count, desc, eq, gte, ilike, inArray, lte, or, sql } from "drizzle-orm";
 import type { PgTable } from "drizzle-orm/pg-core";
 import { db } from "@/db";
-import { bookmark, click, comment, like, project, user, view } from "@/db/schema";
+import { bookmark, click, comment, commentUpvote, like, project, user, view } from "@/db/schema";
 import type { Actor } from "@/lib/actor";
 import type { ProjectType } from "@/lib/departments";
 import { engagementScore, type Interactions } from "@/lib/gauge";
@@ -338,9 +338,14 @@ export type ProjectComment = {
   image: string | null;
   username: string | null;
   userId: string;
+  upvotes: number;
+  upvoted: boolean;
 };
 
-export async function getCommentsForProject(projectId: string): Promise<ProjectComment[]> {
+export async function getCommentsForProject(
+  projectId: string,
+  viewerId?: string,
+): Promise<ProjectComment[]> {
   return db
     .select({
       id: comment.id,
@@ -350,10 +355,16 @@ export async function getCommentsForProject(projectId: string): Promise<ProjectC
       image: user.image,
       username: user.username,
       userId: user.id,
+      upvotes: count(commentUpvote.id),
+      upvoted: viewerId
+        ? sql<boolean>`coalesce(bool_or(${commentUpvote.userId} = ${viewerId}), false)`
+        : sql<boolean>`false`,
     })
     .from(comment)
     .innerJoin(user, eq(comment.userId, user.id))
+    .leftJoin(commentUpvote, eq(commentUpvote.commentId, comment.id))
     .where(eq(comment.projectId, projectId))
+    .groupBy(comment.id, user.id)
     .orderBy(desc(comment.createdAt));
 }
 

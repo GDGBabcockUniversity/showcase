@@ -7,6 +7,7 @@ import { Nav } from "@/components/nav";
 import { Footer } from "@/components/footer";
 import { UpvoteButton } from "@/components/upvote-button";
 import { CommentForm } from "@/components/comment-form";
+import { CommentUpvoteButton } from "@/components/comment-upvote-button";
 import { MediaSlider } from "@/components/media-slider";
 import { VisitLink } from "@/components/visit-link";
 import { BookmarkButton } from "@/components/bookmark-button";
@@ -108,7 +109,7 @@ export default async function ProjectPage({
     getAllProjects(),
     session ? getLikedProjectIds(session.user.id) : Promise.resolve(new Set<string>()),
     session ? getBookmarkedProjectIds(session.user.id) : Promise.resolve(new Set<string>()),
-    getCommentsForProject(id),
+    getCommentsForProject(id, session?.user.id),
     getProjectMakers(id),
   ]);
   const isOwner = session?.user.id === p.ownerId;
@@ -347,6 +348,14 @@ export default async function ProjectPage({
                             </p>
                           </div>
                           <p className="mt-1.5 break-words text-sm leading-relaxed text-muted">{c.body}</p>
+                          <div className="mt-3">
+                            <CommentUpvoteButton
+                              commentId={c.id}
+                              projectId={p.id}
+                              initial={c.upvotes}
+                              upvoted={c.upvoted}
+                            />
+                          </div>
                         </div>
                       </div>
                     </li>

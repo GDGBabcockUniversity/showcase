@@ -8,7 +8,7 @@ import { after } from "next/server";
 import { and, eq, ilike, inArray, ne } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { db } from "@/db";
-import { bookmark, click, comment, like, project, user } from "@/db/schema";
+import { bookmark, click, comment, commentUpvote, like, project, user } from "@/db/schema";
 import { actorKey } from "@/lib/actor";
 import { DEPARTMENTS, LEVELS, PROJECT_TYPES } from "@/lib/departments";
 import { MAX_TAGS, TAGS } from "@/lib/tags";
@@ -71,6 +71,25 @@ export async function addComment(
 
   revalidatePath(`/project/${projectId}`);
   return { ok: true };
+}
+
+export async function toggleCommentUpvote(commentId: string, projectId: string) {
+  const session = await requireSession();
+  const userId = session.user.id;
+  const existing = await db
+    .select({ id: commentUpvote.id })
+    .from(commentUpvote)
+    .where(and(eq(commentUpvote.commentId, commentId), eq(commentUpvote.userId, userId)));
+
+  if (existing.length > 0) {
+    await db
+      .delete(commentUpvote)
+      .where(and(eq(commentUpvote.commentId, commentId), eq(commentUpvote.userId, userId)));
+  } else {
+    await db.insert(commentUpvote).values({ id: randomUUID(), commentId, userId });
+  }
+
+  revalidatePath(`/project/${projectId}`);
 }
 
 // Clicks are anonymous-friendly — don't gate "visit project" behind login.
