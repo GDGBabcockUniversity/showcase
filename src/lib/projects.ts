@@ -338,15 +338,17 @@ export type ProjectComment = {
   image: string | null;
   username: string | null;
   userId: string;
+  parentId: string | null;
   upvotes: number;
   upvoted: boolean;
+  replies: ProjectComment[];
 };
 
 export async function getCommentsForProject(
   projectId: string,
   viewerId?: string,
 ): Promise<ProjectComment[]> {
-  return db
+  const allComments = await db
     .select({
       id: comment.id,
       body: comment.body,
@@ -355,6 +357,7 @@ export async function getCommentsForProject(
       image: user.image,
       username: user.username,
       userId: user.id,
+      parentId: comment.parentId,
       upvotes: count(commentUpvote.id),
       upvoted: viewerId
         ? sql<boolean>`coalesce(bool_or(${commentUpvote.userId} = ${viewerId}), false)`
@@ -366,6 +369,33 @@ export async function getCommentsForProject(
     .where(eq(comment.projectId, projectId))
     .groupBy(comment.id, user.id)
     .orderBy(desc(comment.createdAt));
+
+  const topLevelComments: ProjectComment[] = [];
+  const repliesByParentId = new Map<string, ProjectComment[]>();
+
+  for (const c of allComments) {
+    const item: ProjectComment = {
+      ...c,
+      replies: [],
+    };
+
+    if (c.parentId) {
+      const list = repliesByParentId.get(c.parentId) ?? [];
+      list.push(item);
+      repliesByParentId.set(c.parentId, list);
+    } else {
+      topLevelComments.push(item);
+    }
+  }
+
+  for (const top of topLevelComments) {
+    const replies = repliesByParentId.get(top.id) ?? [];
+    // Sort replies chronologically (oldest first)
+    replies.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+    top.replies = replies;
+  }
+
+  return topLevelComments;
 }
 
 // Takes an already-resolved actor so the caller can defer this with `after()`

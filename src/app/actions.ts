@@ -60,6 +60,8 @@ export async function addComment(
 ): Promise<CommentState> {
   const session = await requireSession();
   const body = String(formData.get("body") ?? "").trim();
+  const parentIdRaw = String(formData.get("parentId") ?? "").trim();
+  const parentId = parentIdRaw || null;
 
   if (body.length < 2) return { ok: false, error: "Say a bit more." };
   if (body.length > 500)
@@ -67,7 +69,7 @@ export async function addComment(
 
   await db
     .insert(comment)
-    .values({ id: randomUUID(), projectId, userId: session.user.id, body });
+    .values({ id: randomUUID(), projectId, userId: session.user.id, parentId, body });
 
   revalidatePath(`/project/${projectId}`);
   return { ok: true };

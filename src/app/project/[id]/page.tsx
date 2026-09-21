@@ -7,7 +7,7 @@ import { Nav } from "@/components/nav";
 import { Footer } from "@/components/footer";
 import { UpvoteButton } from "@/components/upvote-button";
 import { CommentForm } from "@/components/comment-form";
-import { CommentUpvoteButton } from "@/components/comment-upvote-button";
+import { CommentTree } from "@/components/comment-tree";
 import { MediaSlider } from "@/components/media-slider";
 import { VisitLink } from "@/components/visit-link";
 import { BookmarkButton } from "@/components/bookmark-button";
@@ -303,7 +303,7 @@ export default async function ProjectPage({
                   </h2>
                 </div>
                 <span className="font-display text-3xl font-semibold tabular-nums">
-                  {comments.length}
+                  {p.comments}
                 </span>
               </div>
 
@@ -318,54 +318,11 @@ export default async function ProjectPage({
                 </p>
               )}
 
-              {comments.length > 0 ? (
-                <ol className="mt-6 space-y-5">
-                  {comments.map((c) => (
-                    <li key={c.id} className="border-b border-border pb-5 last:border-0">
-                      <div className="flex items-start gap-3">
-                        <Avatar aria-hidden className="mt-0.5 border border-border">
-                          <AvatarImage src={c.image ?? undefined} alt="" />
-                          <AvatarFallback
-                            className="font-display text-xs font-semibold text-white"
-                            style={{
-                              background:
-                                "linear-gradient(135deg, var(--color-blue), var(--color-green))",
-                            }}
-                          >
-                            {c.by.trim()[0]?.toUpperCase() ?? "?"}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-baseline justify-between gap-3">
-                            <Link
-                              href={`/u/${c.username ?? c.userId}`}
-                              className="min-w-0 break-words text-sm font-medium transition-colors hover:text-blue"
-                            >
-                              {c.by}
-                            </Link>
-                            <p className="font-mono text-[10px] uppercase tracking-wider text-muted">
-                              {c.createdAt.toLocaleDateString()}
-                            </p>
-                          </div>
-                          <p className="mt-1.5 break-words text-sm leading-relaxed text-muted">{c.body}</p>
-                          <div className="mt-3">
-                            <CommentUpvoteButton
-                              commentId={c.id}
-                              projectId={p.id}
-                              initial={c.upvotes}
-                              upvoted={c.upvoted}
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    </li>
-                  ))}
-                </ol>
-              ) : (
-                <p className="mt-6 text-sm text-muted">
-                  No comments yet — be the first to say something.
-                </p>
-              )}
+              <CommentTree
+                comments={comments}
+                projectId={p.id}
+                isLoggedIn={!!session}
+              />
             </section>
 
             {/* Related */}

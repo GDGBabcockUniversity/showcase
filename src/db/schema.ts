@@ -1,4 +1,4 @@
-import { pgTable, text, varchar, timestamp, boolean, jsonb, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, boolean, jsonb, uniqueIndex, type AnyPgColumn } from "drizzle-orm/pg-core";
 import { SUMMARY_MAX, TITLE_MAX } from "@/lib/limits";
 
 // better-auth core tables — field names match @better-auth/core's schema
@@ -132,6 +132,7 @@ export const comment = pgTable("comment", {
   id: text("id").primaryKey(),
   projectId: text("project_id").notNull().references(() => project.id, { onDelete: "cascade" }),
   userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  parentId: text("parent_id").references((): AnyPgColumn => comment.id, { onDelete: "cascade" }),
   body: text("body").notNull(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
