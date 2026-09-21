@@ -2,8 +2,6 @@ import { and, count, desc, eq, gte, ilike, inArray, isNotNull, isNull, lt, or, s
 import { db } from "@/db";
 import {
   bookmark,
-  comment,
-  commentUpvote,
   hiddenComment,
   interaction,
   project,
@@ -493,64 +491,27 @@ export type ProjectComment = {
   image: string | null;
   username: string | null;
   userId: string;
-  parentId: string | null;
-  upvotes: number;
-  upvoted: boolean;
-  replies: ProjectComment[];
 };
 
-export async function getCommentsForProject(
-  projectId: string,
-  viewerId?: string,
-): Promise<ProjectComment[]> {
-  const allComments = await db
+// Hidden (moderated) comments are excluded here too — "hidden" means hidden
+// from the public feed, not just from scoring.
+export async function getCommentsForProject(projectId: string): Promise<ProjectComment[]> {
+  return db
     .select({
-      id: comment.id,
-      body: comment.body,
-      createdAt: comment.createdAt,
+      id: interaction.id,
+      body: interaction.body,
+      createdAt: interaction.createdAt,
       by: user.name,
       image: user.image,
       username: user.username,
       userId: user.id,
-      parentId: comment.parentId,
-      upvotes: count(commentUpvote.id),
-      upvoted: viewerId
-        ? sql<boolean>`coalesce(bool_or(${commentUpvote.userId} = ${viewerId}), false)`
-        : sql<boolean>`false`,
     })
-    .from(comment)
-    .innerJoin(user, eq(comment.userId, user.id))
-    .leftJoin(commentUpvote, eq(commentUpvote.commentId, comment.id))
-    .where(eq(comment.projectId, projectId))
-    .groupBy(comment.id, user.id)
-    .orderBy(desc(comment.createdAt));
-
-  const topLevelComments: ProjectComment[] = [];
-  const repliesByParentId = new Map<string, ProjectComment[]>();
-
-  for (const c of allComments) {
-    const item: ProjectComment = {
-      ...c,
-      replies: [],
-    };
-
-    if (c.parentId) {
-      const list = repliesByParentId.get(c.parentId) ?? [];
-      list.push(item);
-      repliesByParentId.set(c.parentId, list);
-    } else {
-      topLevelComments.push(item);
-    }
-  }
-
-  for (const top of topLevelComments) {
-    const replies = repliesByParentId.get(top.id) ?? [];
-    // Sort replies chronologically (oldest first)
-    replies.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
-    top.replies = replies;
-  }
-
-  return topLevelComments;
+    .from(interaction)
+    .innerJoin(user, eq(interaction.userId, user.id))
+    .leftJoin(hiddenComment, eq(hiddenComment.interactionId, interaction.id))
+    .where(and(eq(interaction.projectId, projectId), eq(interaction.type, "comment"), isNull(hiddenComment.interactionId)))
+    .orderBy(desc(interaction.createdAt))
+    .then((rows) => rows.map((r) => ({ ...r, body: r.body ?? "" })));
 }
 
 // Takes an already-resolved actor (and raw IP) so the caller can defer this

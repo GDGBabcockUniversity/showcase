@@ -1,7 +1,6 @@
 "use client";
 
 import { useRef } from "react";
-import Image from "next/image";
 import { LuChevronLeft, LuChevronRight } from "react-icons/lu";
 
 import { Button } from "@/components/ui/button";
@@ -36,31 +35,16 @@ export function MediaSlider({ images, title }: { images: string[]; title: string
                 src={src}
                 controls
                 playsInline
-                // Only preload metadata for the first/visible video.
-                // Off-screen videos use preload="none" to avoid wasted bandwidth.
-                preload={i === 0 ? "metadata" : "none"}
+                preload="metadata"
                 className="aspect-[16/9] w-full rounded-2xl border border-border bg-black object-contain"
               />
             ) : (
-              // Use next/image for automatic resizing, modern format delivery (AVIF/WebP),
-              // and lazy loading. The first slide is the LCP image so it gets priority.
-              <div className="relative aspect-[16/9] w-full overflow-hidden rounded-2xl border border-border">
-                <Image
-                  src={src}
-                  alt={i === 0 ? `${title} cover` : `${title} image ${i + 1}`}
-                  fill
-                  sizes="(max-width: 768px) 100vw, (max-width: 1200px) 60vw, 700px"
-                  className="object-cover"
-                  // First slide is the page's largest contentful paint — load it immediately.
-                  // All other slides are off-screen; defer until they scroll into view.
-                  priority={i === 0}
-                  loading={i === 0 ? "eager" : "lazy"}
-                  placeholder="blur"
-                  // A tiny grey blur placeholder fills the slot while the real image loads,
-                  // preventing layout shift and giving instant visual feedback.
-                  blurDataURL="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAQAAAACCAYAAAB/qH1jAAAADklEQVQI12NgYGBg+A8AAQQAAd7TaakAAAAASUVORK5CYII="
-                />
-              </div>
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={src}
+                alt={i === 0 ? `${title} cover` : `${title} image ${i + 1}`}
+                className="aspect-[16/9] w-full rounded-2xl border border-border object-cover"
+              />
             )}
           </li>
         ))}

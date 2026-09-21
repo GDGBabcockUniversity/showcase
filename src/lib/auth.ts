@@ -70,7 +70,6 @@ export const auth = betterAuth({
         // if (!isAllowedDomain(email)) return null;
         return {
           user: {
-            id: profile.sub,
             name: profile.name ?? email,
             email,
             image: profile.picture,
