@@ -10,6 +10,7 @@ import {
   doublePrecision,
   uniqueIndex,
   index,
+  type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { SUMMARY_MAX, TITLE_MAX } from "@/lib/limits";
@@ -217,4 +218,24 @@ export const bookmark = pgTable("bookmark", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 }, (t) => [
   uniqueIndex("bookmark_project_user_idx").on(t.projectId, t.userId),
+]);
+
+export const comment = pgTable("comment", {
+  id: text("id").primaryKey(),
+  projectId: text("project_id").notNull().references(() => project.id, { onDelete: "cascade" }),
+  userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  parentId: text("parent_id").references((): AnyPgColumn => comment.id, { onDelete: "cascade" }),
+  body: text("body").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Comment appreciation is deliberately separate from project signal. It is
+// displayed on comments but never included in project ranking.
+export const commentUpvote = pgTable("comment_upvote", {
+  id: text("id").primaryKey(),
+  commentId: text("comment_id").notNull().references(() => comment.id, { onDelete: "cascade" }),
+  userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("comment_upvote_comment_user_idx").on(t.commentId, t.userId),
 ]);

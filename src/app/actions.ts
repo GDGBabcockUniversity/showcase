@@ -8,7 +8,7 @@ import { after } from "next/server";
 import { and, eq, ilike, inArray, ne } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { db } from "@/db";
-import { bookmark, interaction, project, projectContributor, projectTag, user } from "@/db/schema";
+import { bookmark, comment, commentUpvote, interaction, project, projectContributor, projectTag, user } from "@/db/schema";
 import { actorKey, currentClientIp, type Actor } from "@/lib/actor";
 import { recordInteraction } from "@/lib/interactions";
 import { DEPARTMENTS, LEVELS, PROJECT_TYPES } from "@/lib/departments";
@@ -60,6 +60,8 @@ export async function addComment(
 ): Promise<CommentState> {
   const session = await requireSession();
   const body = String(formData.get("body") ?? "").trim();
+  const parentIdRaw = String(formData.get("parentId") ?? "").trim();
+  const parentId = parentIdRaw || null;
 
   if (body.length < 2) return { ok: false, error: "Say a bit more." };
   if (body.length > 500)
@@ -80,8 +82,31 @@ export async function addComment(
     };
   }
 
+  await db
+    .insert(comment)
+    .values({ id: randomUUID(), projectId, userId: session.user.id, parentId, body });
+
   revalidatePath(`/project/${projectId}`);
   return { ok: true };
+}
+
+export async function toggleCommentUpvote(commentId: string, projectId: string) {
+  const session = await requireSession();
+  const userId = session.user.id;
+  const existing = await db
+    .select({ id: commentUpvote.id })
+    .from(commentUpvote)
+    .where(and(eq(commentUpvote.commentId, commentId), eq(commentUpvote.userId, userId)));
+
+  if (existing.length > 0) {
+    await db
+      .delete(commentUpvote)
+      .where(and(eq(commentUpvote.commentId, commentId), eq(commentUpvote.userId, userId)));
+  } else {
+    await db.insert(commentUpvote).values({ id: randomUUID(), commentId, userId });
+  }
+
+  revalidatePath(`/project/${projectId}`);
 }
 
 // Clicks are anonymous-friendly — don't gate "visit project" behind login.
