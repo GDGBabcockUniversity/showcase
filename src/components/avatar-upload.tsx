@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import { LuPencil } from "react-icons/lu";
 import { toast } from "sonner";
 import { updateAvatar } from "@/app/actions";
@@ -42,11 +43,13 @@ export function AvatarUpload({ name, image }: { name: string; image: string | nu
         className="group relative block h-16 w-16 shrink-0 cursor-pointer rounded-full"
       >
         {src ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
+          <Image
             src={src}
-            alt=""
+            alt={name}
+            width={64}
+            height={64}
             className="h-16 w-16 rounded-full border border-border object-cover"
+            unoptimized={src.startsWith("blob:")}
           />
         ) : (
           <span
