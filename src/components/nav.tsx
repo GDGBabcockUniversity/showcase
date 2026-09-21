@@ -9,8 +9,8 @@ import { SearchBox } from "@/components/search-box";
 
 const LINKS = [
   { href: "/", label: "Home" },
-  { href: "/feed", label: "Feed" },
   { href: "/this-month", label: "This Month" },
+  { href: "/archive", label: "Archive" },
   { href: "/submit", label: "Submit" },
 ];
 
@@ -35,9 +35,6 @@ export async function Nav() {
           <span className="min-w-0">
             <span className="block truncate font-display text-sm font-semibold tracking-tight">
               GDG Babcock Showcase
-            </span>
-            <span className="block truncate font-mono text-[10px] uppercase tracking-wider text-muted">
-              Student projects, in motion
             </span>
           </span>
         </Link>

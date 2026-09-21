@@ -16,7 +16,7 @@ export function DepartmentSelect({
     if (value) params.set("dept", value);
     else params.delete("dept");
     const qs = params.toString();
-    router.push(qs ? `/feed?${qs}` : "/feed");
+    router.push(qs ? `/?${qs}` : "/");
   }
 
   return (

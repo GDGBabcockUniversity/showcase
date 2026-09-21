@@ -1,13 +1,18 @@
-import { differenceInCalendarDays, format, isToday, isYesterday } from "date-fns";
+import { differenceInCalendarDays, isSameMonth } from "date-fns";
 
-// Coarse buckets near the present, exact dates once "how long ago" stops being
-// the useful part. Doubles as the feed's grouping key.
-export function relativeDate(date: Date) {
-  if (isToday(date)) return "Today";
-  if (isYesterday(date)) return "Yesterday";
+// The feed only ever shows the current calendar month — anything older has
+// aged out to /archive, searchable by the month it was published. Within
+// this month, split into three graduated recency bands so the newest
+// launches don't get lost next to ones from three weeks ago.
+export const FEED_BUCKETS = ["This week", "Last week", "This month"] as const;
+export type FeedBucket = (typeof FEED_BUCKETS)[number];
 
-  const days = differenceInCalendarDays(new Date(), date);
-  if (days <= 7) return "Last week";
-  if (days <= 31) return "Last month";
-  return format(date, "d MMM yyyy");
+// null means "not in the current calendar month" — the feed excludes it,
+// not just labels it differently.
+export function feedBucket(date: Date, now = new Date()): FeedBucket | null {
+  if (!isSameMonth(date, now)) return null;
+  const days = differenceInCalendarDays(now, date);
+  if (days <= 7) return "This week";
+  if (days <= 14) return "Last week";
+  return "This month";
 }

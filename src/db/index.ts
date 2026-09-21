@@ -7,7 +7,7 @@ const pool = new Pool({
   max: 20,
   idleTimeoutMillis: 30000,
   // Neon is a long way from some networks (TLS+SCRAM alone can take seconds);
-  // 2s was too tight and made the first query fail on slow links.
+  // 15s keeps connection setup reliable even on cold starts or slower links.
   connectionTimeoutMillis: 15000,
 });
 

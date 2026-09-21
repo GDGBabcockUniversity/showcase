@@ -25,7 +25,7 @@ export async function actorKey(
 
   if (resolved) return { key: `user:${resolved.user.id}`, userId: resolved.user.id };
 
-  const ip = h.get("x-forwarded-for")?.split(",")[0].trim() || h.get("x-real-ip") || "unknown";
+  const ip = clientIp(h);
   const ua = h.get("user-agent") ?? "unknown";
   // Hashed with the app secret so raw IPs never land in the database.
   const digest = createHash("sha256")
@@ -33,4 +33,16 @@ export async function actorKey(
     .digest("hex");
 
   return { key: `anon:${digest}`, userId: null };
+}
+
+// The raw IP, separate from actorKey's hash — interaction_log needs it for
+// abuse-velocity queries, but `Actor`/`fingerprint` must never carry it.
+// Same header-reading constraint as actorKey: call during render, not inside
+// an `after()` callback.
+export function clientIp(h: Headers): string {
+  return h.get("x-forwarded-for")?.split(",")[0].trim() || h.get("x-real-ip") || "unknown";
+}
+
+export async function currentClientIp(): Promise<string> {
+  return clientIp(await headers());
 }

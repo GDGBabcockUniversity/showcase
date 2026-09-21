@@ -14,7 +14,6 @@ import {
   getLikedProjectIds,
   getPublicProjectsByUser,
 } from "@/lib/projects";
-import { engagementScore } from "@/lib/gauge";
 
 async function getProfile(handle: string) {
   
@@ -64,7 +63,6 @@ export default async function ProfilePage({
     session ? getBookmarkedProjectIds(session.user.id) : Promise.resolve(new Set<string>()),
   ]);
 
-  const signal = projects.reduce((sum, p) => sum + engagementScore(p), 0);
   const memberSince = profile.createdAt.toLocaleDateString("en-US", {
     month: "long",
     year: "numeric",
@@ -116,8 +114,7 @@ export default async function ProfilePage({
               <p className="mt-2 max-w-xl text-sm leading-relaxed text-fg">{profile.bio}</p>
             )}
             <p className="mt-1 font-mono text-[10px] uppercase tracking-wider text-muted">
-              Member since {memberSince} · {projects.length} on the board ·{" "}
-              {signal.toFixed(1)} signal
+              Member since {memberSince} · {projects.length} on the board
             </p>
           </div>
         </section>
