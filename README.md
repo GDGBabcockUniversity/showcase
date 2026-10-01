@@ -1,36 +1,145 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# GDG Babcock Showcase
 
-## Getting Started
+GDG Babcock Showcase is a community board for student-built projects. Students can create profiles, submit projects with images or videos, browse work by category, department, and topic, and support projects through views, clicks, likes, comments, and bookmarks.
 
-First, run the development server:
+Submissions are reviewed before they appear publicly. Published projects are ranked by a transparent **signal score**, calculated nightly from weighted community interactions. The top three projects for each month are preserved on the recognition page.
+
+## What it includes
+
+- Email/password and Google sign-in through Better Auth
+- Public project board, search, filters, archive, profiles, and bookmarks
+- Project submission with UploadThing-powered cover and media uploads
+- Reviewer queue for approving projects, requesting changes, moderating comments, and handling suspicious activity
+- Monthly ranking that weights views (20%), clicks (40%), likes (25%), and comments (15%)
+- A nightly Vercel cron job that refreshes current-month scores and records abuse flags
+
+## Tech stack
+
+- Next.js 16, React 19, TypeScript, and Tailwind CSS 4
+- PostgreSQL with Drizzle ORM and Drizzle Kit migrations
+- Better Auth for authentication
+- UploadThing for file uploads
+- Vercel Cron for scheduled signal scoring
+
+## Prerequisites
+
+- Node.js 20.9 or later
+- npm
+- A PostgreSQL database
+- An [UploadThing](https://uploadthing.com/) app and token for media uploads
+- Optional: Google OAuth credentials for Google sign-in
+
+## Local setup
+
+1. Clone the repository and install dependencies.
+
+   ```bash
+   git clone https://github.com/GDGBabcockUniversity/showcase.git
+   cd showcase
+   npm install
+   ```
+
+2. Create your local environment file.
+
+   ```bash
+   cp .env.example .env.local
+   ```
+
+3. Populate `.env.local`.
+
+   ```dotenv
+   DATABASE_URL=postgresql://user:password@localhost:5432/showcase
+   BETTER_AUTH_SECRET=replace-with-a-random-secret
+   BETTER_AUTH_URL=http://localhost:3000
+   GOOGLE_CLIENT_ID=
+   GOOGLE_CLIENT_SECRET=
+   UPLOADTHING_TOKEN=replace-with-your-uploadthing-v7-token
+   CRON_SECRET=replace-with-a-random-secret
+   ```
+
+   Generate the two secrets with:
+
+   ```bash
+   openssl rand -base64 32
+   ```
+
+   If you enable Google sign-in, add `http://localhost:3000/api/auth/callback/google` as an authorized redirect URI in Google Cloud Console. `UPLOADTHING_TOKEN` is required for avatar and project-media uploads.
+
+4. Create the database schema from the committed migrations.
+
+   ```bash
+   npx drizzle-kit migrate
+   ```
+
+5. Start the development server.
+
+   ```bash
+   npm run dev
+   ```
+
+   Visit [http://localhost:3000](http://localhost:3000).
+
+## Local roles and moderation
+
+New accounts have the `USER` role. To review submissions locally, sign up once and use Drizzle Studio to change that user's `role` to `REVIEWER` or `ADMIN`:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm run db:studio
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+The review queue is available at `/review` to reviewers and administrators. Only reviewed, published projects appear on the public board.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Optional development data
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+The repository includes development-only PostgreSQL seed scripts. They create realistic users, projects, and interactions so the board and scoring model are easier to evaluate. Never run them against production.
 
-## Learn More
+```bash
+psql "$DATABASE_URL" -f scripts/seed-test-data.sql
+psql "$DATABASE_URL" -f scripts/seed-interactions.sql
+```
 
-To learn more about Next.js, take a look at the following resources:
+The first script creates the base data; the second can be rerun to add more interactions. Run each command in a single database session, as the scripts use temporary tables.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Available commands
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+| Command | Purpose |
+| --- | --- |
+| `npm run dev` | Start the development server. |
+| `npm run build` | Create a production build. |
+| `npm run start` | Apply migrations, then run the production server. |
+| `npm run lint` | Run ESLint. |
+| `npm run db:push` | Push the current Drizzle schema directly to a development database. |
+| `npm run db:studio` | Open Drizzle Studio. |
+| `npm run db:backfill` | Run the signal-score backfill utility. |
 
-## Deploy on Vercel
+Use migrations (`npx drizzle-kit migrate`) for a shared or production database; `db:push` is most useful during local schema iteration.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Signal scoring
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Scores are calculated for projects published in the current calendar month and are refreshed once overnight. Counts are normalized within each month’s project cohort, then weighted as follows:
+
+| Interaction | Weight |
+| --- | ---: |
+| Click | 40% |
+| Like | 25% |
+| View | 20% |
+| Comment | 15% |
+
+Only the first eligible comment from a person counts toward that project’s score, and hidden comments do not count. Read the in-app explanation at `/signal-model` for the full model and its tradeoffs.
+
+## Deployment
+
+The app is configured for Vercel. Add every variable from `.env.example` to the target Vercel environment, use a production `BETTER_AUTH_URL`, and add the corresponding production Google OAuth callback URL:
+
+```text
+https://your-domain.com/api/auth/callback/google
+```
+
+`vercel.json` schedules `GET /api/cron/signal-scores` daily at 12:00 UTC. Vercel invokes it with `Authorization: Bearer <CRON_SECRET>`; keep `CRON_SECRET` set and private in every deployed environment.
+
+Before deploying, verify the application with:
+
+```bash
+npm run lint
+npm run build
+```
