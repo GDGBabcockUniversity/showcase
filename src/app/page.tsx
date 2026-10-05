@@ -24,6 +24,7 @@ import {
 import { TAGS, TAG_LABEL, type Tag } from "@/lib/tags";
 import { ENGAGEMENT_WEIGHTS } from "@/lib/signal-scores";
 import { FEED_BUCKETS, feedBucket } from "@/lib/when";
+import { LuChevronDown } from "react-icons/lu";
 
 export const metadata: Metadata = {
   title: "GDG Babcock Showcase",
@@ -122,7 +123,33 @@ export default async function Home({
 
         {/* Filter bar */}
         <div className="mt-6 flex flex-col gap-3 border-b border-border pb-6 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex flex-wrap items-center gap-2">
+          {/* Mobile Categories (Collapsible) */}
+          <details className="group sm:hidden rounded-2xl border border-border bg-surface p-4">
+            <summary className="flex cursor-pointer items-center justify-between font-medium outline-none list-none [&::-webkit-details-marker]:hidden">
+              <span className="flex items-center gap-2">
+                Categories
+                {typeFilter && (
+                  <span className="rounded-full bg-blue/10 px-2 py-0.5 text-[10px] font-semibold text-blue">
+                    1 filter
+                  </span>
+                )}
+              </span>
+              <LuChevronDown className="text-muted transition-transform group-open:rotate-180" size={16} />
+            </summary>
+            <div className="mt-4 flex flex-wrap items-center gap-2">
+              <Link href={hrefFor({ type: undefined })} className={chipClass(!typeFilter)}>
+                All
+              </Link>
+              {PROJECT_TYPES.map((t) => (
+                <Link key={t} href={hrefFor({ type: t })} className={chipClass(typeFilter === t)}>
+                  {TYPE_LABEL[t]}
+                </Link>
+              ))}
+            </div>
+          </details>
+
+          {/* Desktop Categories */}
+          <div className="hidden sm:flex flex-wrap items-center gap-2">
             <span className="pr-1 font-mono text-[10px] uppercase tracking-wider text-muted">
               Categories
             </span>
@@ -138,18 +165,46 @@ export default async function Home({
           <DepartmentSelect current={deptFilter} />
         </div>
 
-        <div className="mt-4 flex flex-wrap items-center gap-2 border-b border-border pb-6">
-          <span className="pr-1 font-mono text-[10px] uppercase tracking-wider text-muted">
-            Topics
-          </span>
-          <Link href={hrefFor({ tag: undefined })} className={chipClass(!tagFilter)}>
-            All
-          </Link>
-          {TAGS.map((t) => (
-            <Link key={t} href={hrefFor({ tag: t })} className={chipClass(tagFilter === t)}>
-              {TAG_LABEL[t]}
+        <div className="mt-4 border-b border-border pb-6">
+          {/* Mobile Topics (Collapsible) */}
+          <details className="group sm:hidden rounded-2xl border border-border bg-surface p-4">
+            <summary className="flex cursor-pointer items-center justify-between font-medium outline-none list-none [&::-webkit-details-marker]:hidden">
+              <span className="flex items-center gap-2">
+                Topics
+                {tagFilter && (
+                  <span className="rounded-full bg-blue/10 px-2 py-0.5 text-[10px] font-semibold text-blue">
+                    1 filter
+                  </span>
+                )}
+              </span>
+              <LuChevronDown className="text-muted transition-transform group-open:rotate-180" size={16} />
+            </summary>
+            <div className="mt-4 flex flex-wrap items-center gap-2">
+              <Link href={hrefFor({ tag: undefined })} className={chipClass(!tagFilter)}>
+                All
+              </Link>
+              {TAGS.map((t) => (
+                <Link key={t} href={hrefFor({ tag: t })} className={chipClass(tagFilter === t)}>
+                  {TAG_LABEL[t]}
+                </Link>
+              ))}
+            </div>
+          </details>
+
+          {/* Desktop Topics */}
+          <div className="hidden sm:flex flex-wrap items-center gap-2">
+            <span className="pr-1 font-mono text-[10px] uppercase tracking-wider text-muted">
+              Topics
+            </span>
+            <Link href={hrefFor({ tag: undefined })} className={chipClass(!tagFilter)}>
+              All
             </Link>
-          ))}
+            {TAGS.map((t) => (
+              <Link key={t} href={hrefFor({ tag: t })} className={chipClass(tagFilter === t)}>
+                {TAG_LABEL[t]}
+              </Link>
+            ))}
+          </div>
         </div>
 
         <div className="mt-8 grid gap-10 lg:grid-cols-[minmax(0,1fr)_280px]">

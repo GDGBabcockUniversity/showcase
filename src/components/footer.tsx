@@ -32,18 +32,22 @@ export function Footer() {
           />
           <span>GDG on Campus Babcock</span>
         </div>
-        <div className="flex flex-wrap items-center gap-4">
-          <Link href="/" className="hover:text-fg">
-            Home
-          </Link>
-          <Link href="/this-month" className="hover:text-fg">
-            This Month
-          </Link>
-          <Link href="/signal-model" className="hover:text-fg">
-            Signal model
-          </Link>
+        <div className="flex flex-col gap-6 md:flex-row md:items-center md:gap-4">
+          {/* Text Links */}
+          <div className="flex flex-col gap-4 md:flex-row md:items-center">
+            <Link href="/" className="hover:text-fg py-1 md:py-0">
+              Home
+            </Link>
+            <Link href="/this-month" className="hover:text-fg py-1 md:py-0">
+              This Month
+            </Link>
+            <Link href="/signal-model" className="hover:text-fg py-1 md:py-0">
+              Signal model
+            </Link>
+          </div>
 
-          <span className="flex items-center gap-3 md:border-l md:border-border md:pl-4">
+          {/* Social Icons */}
+          <div className="flex items-center gap-4 border-t border-border pt-6 md:border-t-0 md:border-l md:pt-0 md:pl-4">
             {SOCIALS.map(({ label, href, Icon }) => (
               <a
                 key={label}
@@ -51,12 +55,12 @@ export function Footer() {
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label={`${label} — @gdgbabcock`}
-                className="hover:text-fg"
+                className="p-2 -m-2 hover:text-fg transition-colors"
               >
-                <Icon size={16} aria-hidden />
+                <Icon size={18} aria-hidden />
               </a>
             ))}
-          </span>
+          </div>
         </div>
       </div>
     </footer>
