@@ -96,13 +96,14 @@ export default function SignalModelPage() {
             hard cap at the benchmark.
           </p>
           <p>
-            <strong className="text-fg">Equal exposure:</strong> every project
-            gets the same seven-day window from publication. Scores keep
-            updating briefly after a month ends so late-month projects can
-            complete that window before their cohort is frozen. Signed-in owners
-            and contributors cannot add signal to their own project. Anonymous
-            visits are not tied to an owner by IP because shared campus networks
-            can include unrelated people.
+            <strong className="text-fg">Scoring window:</strong> activity
+            counts from publication through the end of that calendar month.
+            Scores update nightly during the month and are final after it ends.
+            This means an early-month project has more days to gather activity
+            than one published near month-end. Signed-in owners and contributors
+            cannot add signal to their own project. Anonymous visits are not
+            tied to an owner by IP because shared campus networks can include
+            unrelated people.
           </p>
           <p>
             Review is separate from ranking. A reviewer checks that a project is

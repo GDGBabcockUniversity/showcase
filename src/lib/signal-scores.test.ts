@@ -1,5 +1,6 @@
 import {
   computeScores,
+  cohortBounds,
   ENGAGEMENT_WEIGHTS,
   normalizeMetric,
   percentile,
@@ -58,6 +59,7 @@ if (
 }
 
 const publishedAt = new Date("2026-01-01T00:00:00Z");
+const januaryEnd = cohortBounds("2026-01").end;
 if (
   projectExposureEnd(
     publishedAt,
@@ -71,8 +73,8 @@ if (
 if (
   projectExposureEnd(
     publishedAt,
-    new Date("2026-01-20T00:00:00Z"),
-  ).toISOString() !== "2026-01-08T00:00:00.000Z"
+    new Date("2026-02-20T00:00:00Z"),
+  ).getTime() !== januaryEnd.getTime()
 ) {
-  throw new Error("exposure should close seven days after publication");
+  throw new Error("exposure should close at the end of the publication month");
 }

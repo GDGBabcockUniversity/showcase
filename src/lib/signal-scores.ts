@@ -1,4 +1,4 @@
-import { endOfMonth, format, startOfMonth, subMonths } from "date-fns";
+import { addMonths, format, startOfMonth } from "date-fns";
 import { and, eq, gte, inArray, lt, sql, type SQLWrapper } from "drizzle-orm";
 import { db } from "@/db";
 import { interaction, project, signalScore } from "@/db/schema";
@@ -14,14 +14,10 @@ export const ENGAGEMENT_WEIGHTS = {
 // "what's a strong result" benchmark, so normalization falls back to the
 // typical (median) project instead of the 90th percentile.
 const MIN_COHORT_FOR_P90 = 10;
-export const SIGNAL_EXPOSURE_DAYS = 7;
 
 export function projectExposureEnd(publishedAt: Date, now: Date): Date {
   return new Date(
-    Math.min(
-      now.getTime(),
-      publishedAt.getTime() + SIGNAL_EXPOSURE_DAYS * 24 * 60 * 60 * 1000,
-    ),
+    Math.min(now.getTime(), cohortBounds(cohortMonthOf(publishedAt)).end.getTime()),
   );
 }
 
@@ -31,7 +27,7 @@ export function cohortMonthOf(date: Date): string {
 
 export function cohortBounds(cohortMonth: string): { start: Date; end: Date } {
   const start = startOfMonth(new Date(`${cohortMonth}-01T00:00:00`));
-  const end = endOfMonth(start);
+  const end = startOfMonth(addMonths(start, 1));
   return { start, end };
 }
 
@@ -110,7 +106,7 @@ export async function firstCommentCounts(
         AND h.interaction_id IS NULL
         AND ${excludeProjectInsiders(sql`i.user_id`, sql`i.project_id`, sql`p.user_id`)}
         AND i.created_at >= p.published_at
-        AND i.created_at < LEAST(${now}, p.published_at + ${SIGNAL_EXPOSURE_DAYS} * interval '1 day')
+        AND i.created_at < LEAST(${now}, date_trunc('month', p.published_at) + interval '1 month')
         AND ${excludeConfirmedAbuse(sql`i.id`, sql`i.project_id`, sql`i.created_at`)}
         AND i.project_id IN (${sql.join(
           projectIds.map((id) => sql`${id}`),
@@ -123,8 +119,8 @@ export async function firstCommentCounts(
   return new Map(result.rows.map((r) => [r.project_id, Number(r.n)]));
 }
 
-// Raw counts for each published project in a month, limited to its first
-// seven days after publication.
+// Raw counts for each published project in a month, from publication through
+// the end of that calendar month.
 export async function cohortRawCounts(
   cohortMonth: string,
   now = new Date(),
@@ -144,7 +140,7 @@ export async function cohortRawCounts(
 
   if (projects.length === 0) return [];
 
-  // Each project's exposure end depends on its publication timestamp.
+  // Each project's exposure end is the start of the following month.
   const counts = await db
     .select({
       projectId: interaction.projectId,
@@ -166,7 +162,7 @@ export async function cohortRawCounts(
           interaction.projectId,
           project.userId,
         ),
-        sql`${interaction.createdAt} < LEAST(${now}, ${project.publishedAt} + ${SIGNAL_EXPOSURE_DAYS} * interval '1 day')`,
+        sql`${interaction.createdAt} < LEAST(${now}, date_trunc('month', ${project.publishedAt}) + interval '1 month')`,
         excludeConfirmedAbuse(
           interaction.id,
           interaction.projectId,
@@ -260,25 +256,11 @@ export async function recomputeCohortSignalScores(
   return scores;
 }
 
-// Recompute this month, and the previous cohort during its final exposure
-// week. That gives projects published at month end the same seven days.
+// Recompute the current month's scores nightly. Once the month ends, its
+// scores are final.
 export async function runNightlySignalScoring(
   now = new Date(),
 ): Promise<ComputedScore[]> {
   const cohortMonth = cohortMonthOf(now);
-  const currentStart = cohortBounds(cohortMonth).start;
-  const months = [cohortMonth];
-  if (
-    now.getTime() <
-    currentStart.getTime() + (SIGNAL_EXPOSURE_DAYS + 1) * 24 * 60 * 60 * 1000
-  ) {
-    months.push(cohortMonthOf(subMonths(currentStart, 1)));
-  }
-
-  const allScores: ComputedScore[] = [];
-  for (const month of months) {
-    const scores = await recomputeCohortSignalScores(month, now);
-    allScores.push(...scores);
-  }
-  return allScores.filter((s) => s.cohortMonth === cohortMonth);
+  return recomputeCohortSignalScores(cohortMonth, now);
 }
