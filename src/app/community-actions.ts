@@ -41,6 +41,8 @@ export async function setFollowing(
   }
   revalidatePath("/following");
   revalidatePath("/account");
+  if (target.projectId) revalidatePath(`/project/${target.projectId}`);
+  if (target.makerId) revalidatePath("/u/[username]", "page");
 }
 
 export async function setFollowMuted(id: string, muted: boolean) {
@@ -52,10 +54,24 @@ export async function setFollowMuted(id: string, muted: boolean) {
   revalidatePath("/following");
 }
 
-export async function requestCollaboration(projectId: string, message: string) {
+export type CollaborationRequestState = {
+  status: "idle" | "success" | "error";
+  message?: string;
+};
+
+export async function requestCollaboration(
+  projectId: string,
+  _previous: CollaborationRequestState,
+  formData: FormData,
+): Promise<CollaborationRequestState> {
   const sender = await signedIn();
-  const text = message.trim();
-  if (text.length < 10 || text.length > 1000) return;
+  const text = String(formData.get("message") ?? "").trim();
+  if (text.length < 10 || text.length > 1000) {
+    return {
+      status: "error",
+      message: "Write between 10 and 1,000 characters.",
+    };
+  }
   const [target] = await db
     .select({
       ownerId: project.userId,
@@ -64,13 +80,19 @@ export async function requestCollaboration(projectId: string, message: string) {
     })
     .from(project)
     .where(eq(project.id, projectId));
-  if (
-    !target?.open ||
-    target.status !== "PUBLISHED" ||
-    target.ownerId === sender.id
-  )
-    return;
-  await db
+  if (!target?.open || target.status !== "PUBLISHED") {
+    return {
+      status: "error",
+      message: "This project is no longer accepting requests.",
+    };
+  }
+  if (target.ownerId === sender.id) {
+    return {
+      status: "error",
+      message: "You can’t request to join your own project.",
+    };
+  }
+  const [created] = await db
     .insert(collaborationRequest)
     .values({
       id: randomUUID(),
@@ -78,8 +100,20 @@ export async function requestCollaboration(projectId: string, message: string) {
       senderId: sender.id,
       message: text,
     })
-    .onConflictDoNothing();
+    .onConflictDoNothing()
+    .returning({ id: collaborationRequest.id });
+  if (!created) {
+    return {
+      status: "error",
+      message: "You already have an open request for this project.",
+    };
+  }
   revalidatePath(`/project/${projectId}`);
+  revalidatePath("/account");
+  return {
+    status: "success",
+    message: "Request sent. The maker can review it from their account.",
+  };
 }
 
 export async function closeCollaborationRequest(id: string) {
@@ -121,6 +155,7 @@ export async function reportCollaborationRequest(id: string) {
       reason: "Reported by a project participant",
     })
     .onConflictDoNothing();
+  revalidatePath("/account");
 }
 
 export async function dismissCollaborationRequestReport(requestId: string) {

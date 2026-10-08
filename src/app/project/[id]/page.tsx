@@ -29,7 +29,7 @@ import { coverGradient } from "@/lib/cover";
 import { formatDistanceToNow } from "date-fns";
 import { eq, and } from "drizzle-orm";
 import { db } from "@/db";
-import { follow } from "@/db/schema";
+import { collaborationRequest, follow } from "@/db/schema";
 import {
   ShareLink,
   FollowButton,
@@ -101,6 +101,19 @@ export default async function ProjectPage({
           .from(follow)
           .where(
             and(eq(follow.userId, session.user.id), eq(follow.projectId, p.id)),
+          )
+      : [];
+  const [myOpenRequest] =
+    session && !isOwner
+      ? await db
+          .select({ id: collaborationRequest.id })
+          .from(collaborationRequest)
+          .where(
+            and(
+              eq(collaborationRequest.projectId, p.id),
+              eq(collaborationRequest.senderId, session.user.id),
+              eq(collaborationRequest.status, "OPEN"),
+            ),
           )
       : [];
   const ranked = [...allProjects].sort((a, b) => b.signalScore - a.signalScore);
@@ -244,20 +257,75 @@ export default async function ProjectPage({
             </section>
 
             {p.openToCollaboration && (
-              <section className="mt-10 rounded-2xl border border-green/30 bg-green/5 p-5">
-                <p className="eyebrow text-green">Looking for collaborators</p>
+              <section
+                aria-labelledby="collaboration-heading"
+                className="mt-10 border-y border-green/30 bg-green/5 px-4 py-5 sm:px-6"
+              >
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div>
+                    <p className="eyebrow text-green">Open collaboration</p>
+                    <h2
+                      id="collaboration-heading"
+                      className="mt-2 font-display text-xl font-semibold tracking-tight"
+                    >
+                      Help build what comes next
+                    </h2>
+                  </div>
+                  <span className="rounded-full border border-green/30 px-2.5 py-1 font-mono text-[9px] uppercase tracking-wider text-green">
+                    Accepting requests
+                  </span>
+                </div>
+                <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted">
+                  {p.by} is open to working with other makers on this project.
+                </p>
                 {p.requestedSkills.length > 0 && (
-                  <p className="mt-2 text-sm text-muted">
-                    Skills: {p.requestedSkills.join(", ")}
-                  </p>
+                  <div className="mt-4">
+                    <p className="font-mono text-[10px] uppercase tracking-wider text-muted">
+                      Helpful skills
+                    </p>
+                    <ul className="mt-2 flex flex-wrap gap-2">
+                      {p.requestedSkills.map((skill) => (
+                        <li
+                          key={skill}
+                          className="border border-green/25 px-2.5 py-1 text-xs text-fg/90"
+                        >
+                          {skill}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
                 )}
                 {session && !isOwner ? (
-                  <CollaborationForm projectId={p.id} />
+                  myOpenRequest ? (
+                    <p
+                      role="status"
+                      className="mt-5 border-t border-green/20 pt-4 text-sm text-green"
+                    >
+                      Your request is with the maker. You can follow this
+                      project to keep up with new work.
+                    </p>
+                  ) : (
+                    <CollaborationForm projectId={p.id} />
+                  )
                 ) : !session ? (
-                  <p className="mt-2 text-sm text-muted">
-                    Sign in to contact the maker.
+                  <p className="mt-5 border-t border-green/20 pt-4 text-sm text-muted">
+                    <SignInTrigger className="font-medium text-blue hover:underline">
+                      Sign in
+                    </SignInTrigger>{" "}
+                    to introduce yourself to the maker.
                   </p>
-                ) : null}
+                ) : (
+                  <p className="mt-5 border-t border-green/20 pt-4 text-sm text-muted">
+                    You’re listed as a maker on this project.{" "}
+                    <Link
+                      href="/account#collaboration-requests"
+                      className="text-blue hover:underline"
+                    >
+                      View incoming requests
+                    </Link>
+                    .
+                  </p>
+                )}
               </section>
             )}
 

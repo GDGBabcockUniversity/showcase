@@ -18,8 +18,9 @@ import {
 import { STATUS_LABEL, type ProjectStatus } from "@/lib/project-status";
 import { AvatarUpload } from "@/components/avatar-upload";
 import { ProfileForm } from "@/components/profile-form";
+import { formatDistanceToNow } from "date-fns";
 import { AccountTabs } from "./account-tabs";
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { collaborationRequest, project, user as userTable } from "@/db/schema";
 import {
@@ -77,15 +78,20 @@ export default async function AccountPage() {
     .select({
       id: collaborationRequest.id,
       message: collaborationRequest.message,
+      senderId: userTable.id,
       sender: userTable.name,
+      senderUsername: userTable.username,
       title: project.title,
+      projectId: project.id,
+      createdAt: collaborationRequest.createdAt,
     })
     .from(collaborationRequest)
     .innerJoin(project, eq(project.id, collaborationRequest.projectId))
     .innerJoin(userTable, eq(userTable.id, collaborationRequest.senderId))
     .where(
       and(eq(project.userId, user.id), eq(collaborationRequest.status, "OPEN")),
-    );
+    )
+    .orderBy(desc(collaborationRequest.createdAt));
 
   const { drafts, inReview, live } = split(shipped);
 
@@ -156,42 +162,95 @@ export default async function AccountPage() {
           />
         </section>
 
-        {requests.length > 0 && (
-          <section className="mt-10">
-            <h2 className="font-display text-xl font-semibold">
-              Collaboration requests
-            </h2>
-            <ul className="mt-3 grid gap-3">
+        <section id="collaboration-requests" className="mt-10 scroll-mt-24">
+          <div className="flex flex-wrap items-baseline justify-between gap-3 border-b border-border pb-3">
+            <div>
+              <p className="eyebrow">Maker inbox</p>
+              <h2 className="mt-1 font-display text-xl font-semibold">
+                Collaboration requests
+              </h2>
+            </div>
+            <span className="font-mono text-xs uppercase tracking-wider text-muted">
+              {requests.length} open
+            </span>
+          </div>
+          {requests.length > 0 ? (
+            <ul className="mt-4 divide-y divide-border border-y border-border">
               {requests.map((request) => (
-                <li
-                  key={request.id}
-                  className="rounded-xl border border-border p-4"
-                >
-                  <p className="text-xs text-muted">
-                    {request.sender} · {request.title}
-                  </p>
-                  <p className="mt-2 whitespace-pre-wrap text-sm">
+                <li key={request.id} className="py-5 sm:px-2">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium">
+                        <Link
+                          href={`/u/${request.senderUsername ?? request.senderId}`}
+                          className="break-words hover:text-blue"
+                        >
+                          {request.senderUsername
+                            ? `@${request.senderUsername}`
+                            : request.sender}
+                        </Link>
+                        <span className="px-2 text-muted" aria-hidden="true">
+                          →
+                        </span>
+                        <Link
+                          href={`/project/${request.projectId}`}
+                          className="break-words text-muted hover:text-blue"
+                        >
+                          {request.title}
+                        </Link>
+                      </p>
+                      <time
+                        dateTime={request.createdAt.toISOString()}
+                        className="mt-1 block font-mono text-[10px] uppercase tracking-wider text-muted"
+                      >
+                        Received{" "}
+                        {formatDistanceToNow(request.createdAt, {
+                          addSuffix: true,
+                        })}
+                      </time>
+                    </div>
+                    <span className="shrink-0 border border-green/30 px-2 py-1 font-mono text-[9px] uppercase tracking-wider text-green">
+                      Open
+                    </span>
+                  </div>
+                  <blockquote className="mt-4 break-words whitespace-pre-wrap border-l-2 border-green/40 pl-3 text-sm leading-relaxed text-fg/90">
                     {request.message}
-                  </p>
-                  <div className="mt-3 flex gap-4">
+                  </blockquote>
+                  <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-3">
                     <form
                       action={closeCollaborationRequest.bind(null, request.id)}
                     >
-                      <button className="text-xs text-blue">
-                        Close request
+                      <button
+                        type="submit"
+                        className="min-h-9 text-xs font-medium text-green underline decoration-green/40 underline-offset-4 hover:decoration-green"
+                      >
+                        Mark as handled
                       </button>
                     </form>
                     <form
                       action={reportCollaborationRequest.bind(null, request.id)}
                     >
-                      <button className="text-xs text-red">Report</button>
+                      <button
+                        type="submit"
+                        className="min-h-9 text-xs text-muted underline decoration-border underline-offset-4 hover:text-red hover:decoration-red/50"
+                      >
+                        Report request
+                      </button>
                     </form>
                   </div>
                 </li>
               ))}
             </ul>
-          </section>
-        )}
+          ) : (
+            <p
+              role="status"
+              className="mt-4 border border-dashed border-border px-4 py-5 text-sm leading-relaxed text-muted"
+            >
+              No open requests right now. Projects marked as open to
+              collaboration will appear here when someone reaches out.
+            </p>
+          )}
+        </section>
 
         {/* Signal earned across their own projects */}
         <p className="mt-6">
