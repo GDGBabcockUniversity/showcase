@@ -76,11 +76,6 @@ export default async function Home({
   const lastTopThree = await getTopThreeProjects()
   const ranked = [...filtered].sort((a, b) => b.signalScore - a.signalScore);
 
-  // The board only ever shows the current calendar month — anything older
-  // has aged out to /archive. Fixed bucket order (not insertion order), so
-  // "This week" always leads even if it's empty and "Last week" isn't; the
-  // signal ranking is preserved inside each band. Each section only shows
-  // its first 5 up front — ExpandableProjectList reveals the rest on click.
   const groups = FEED_BUCKETS.map((label) => ({
     label,
     items: ranked.filter((p) => feedBucket(p.createdAt) === label),
@@ -88,6 +83,7 @@ export default async function Home({
   const olderCount = filtered.length - groups.reduce((n, g) => n + g.items.length, 0);
 
   const trending = ranked.slice(0, 5);
+
   const likedArr = [...likedIds];
   const savedArr = [...savedIds];
 
