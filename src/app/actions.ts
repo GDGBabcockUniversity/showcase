@@ -5,10 +5,18 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { after } from "next/server";
-import { and, eq, ilike, inArray, ne } from "drizzle-orm";
+import { and, eq, ilike, inArray, isNull, ne } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { db } from "@/db";
-import { bookmark, interaction, project, projectContributor, projectTag, user } from "@/db/schema";
+import {
+  bookmark,
+  hiddenComment,
+  interaction,
+  project,
+  projectContributor,
+  projectTag,
+  user,
+} from "@/db/schema";
 import { actorKey, currentClientIp, type Actor } from "@/lib/actor";
 import { recordInteraction } from "@/lib/interactions";
 import { DEPARTMENTS, LEVELS, PROJECT_TYPES } from "@/lib/departments";
@@ -40,12 +48,23 @@ export async function toggleLike(projectId: string) {
   const existing = await db
     .select({ id: interaction.id })
     .from(interaction)
-    .where(and(eq(interaction.projectId, projectId), eq(interaction.userId, userId), eq(interaction.type, "like")));
+    .where(
+      and(
+        eq(interaction.projectId, projectId),
+        eq(interaction.userId, userId),
+        eq(interaction.type, "like"),
+      ),
+    );
 
   if (existing.length > 0) {
     await db.delete(interaction).where(eq(interaction.id, existing[0].id));
   } else {
-    await recordInteraction({ projectId, type: "like", actor, ip: await currentClientIp() });
+    await recordInteraction({
+      projectId,
+      type: "like",
+      actor,
+      ip: await currentClientIp(),
+    });
   }
 
   revalidatePath("/", "layout");
@@ -65,18 +84,44 @@ export async function addComment(
   if (body.length > 500)
     return { ok: false, error: "Keep it under 500 characters." };
 
-  const actor: Actor = { key: `user:${session.user.id}`, userId: session.user.id };
+  const parentId = String(formData.get("parentId") ?? "").trim() || null;
+  if (parentId) {
+    const [parent] = await db
+      .select({ id: interaction.id })
+      .from(interaction)
+      .leftJoin(hiddenComment, eq(hiddenComment.interactionId, interaction.id))
+      .where(
+        and(
+          eq(interaction.id, parentId),
+          eq(interaction.projectId, projectId),
+          eq(interaction.type, "comment"),
+          isNull(interaction.parentId),
+          isNull(hiddenComment.interactionId),
+        ),
+      );
+    if (!parent)
+      return { ok: false, error: "That comment can't be replied to." };
+  }
+
+  const actor: Actor = {
+    key: `user:${session.user.id}`,
+    userId: session.user.id,
+  };
   const result = await recordInteraction({
     projectId,
     type: "comment",
     actor,
     body,
+    parentId,
     ip: await currentClientIp(),
   });
   if (!result.ok) {
     return {
       ok: false,
-      error: result.reason === "self" ? "You can't comment on your own project." : "That didn't work.",
+      error:
+        result.reason === "self"
+          ? "You can't comment on your own project."
+          : "That didn't work.",
     };
   }
 
@@ -166,7 +211,10 @@ export async function updateProfile(
   }
 
   if (username.length < USERNAME_MIN) {
-    return { ok: false, error: `Username needs at least ${USERNAME_MIN} characters.` };
+    return {
+      ok: false,
+      error: `Username needs at least ${USERNAME_MIN} characters.`,
+    };
   }
   if (await usernameTaken(username, session.user.id)) {
     return { ok: false, error: "That username is taken." };
@@ -216,18 +264,32 @@ export type EditState = {
   ok: boolean;
   message?: string;
   errors?: Partial<
-    Record<"title" | "summary" | "type" | "tags" | "url" | "collaborators" | "cover" | "media", string>
+    Record<
+      | "title"
+      | "summary"
+      | "type"
+      | "tags"
+      | "url"
+      | "collaborators"
+      | "cover"
+      | "media",
+      string
+    >
   >;
 };
 
 // Replaces a project's contributor rows wholesale — simpler than diffing,
 // and cheap at MAX_COLLABORATORS rows.
 async function setContributors(projectId: string, userIds: string[]) {
-  await db.delete(projectContributor).where(eq(projectContributor.projectId, projectId));
+  await db
+    .delete(projectContributor)
+    .where(eq(projectContributor.projectId, projectId));
   if (userIds.length > 0) {
     await db
       .insert(projectContributor)
-      .values(userIds.map((userId) => ({ id: randomUUID(), projectId, userId })));
+      .values(
+        userIds.map((userId) => ({ id: randomUUID(), projectId, userId })),
+      );
   }
 }
 
@@ -236,7 +298,9 @@ async function setContributors(projectId: string, userIds: string[]) {
 async function setTags(projectId: string, tagIds: string[]) {
   await db.delete(projectTag).where(eq(projectTag.projectId, projectId));
   if (tagIds.length > 0) {
-    await db.insert(projectTag).values(tagIds.map((tagId) => ({ id: randomUUID(), projectId, tagId })));
+    await db
+      .insert(projectTag)
+      .values(tagIds.map((tagId) => ({ id: randomUUID(), projectId, tagId })));
   }
 }
 
@@ -262,6 +326,15 @@ export async function updateProject(
     (TAGS as readonly string[]).includes(t),
   );
   const url = String(formData.get("url") ?? "").trim();
+  const openToCollaboration = formData.get("openToCollaboration") === "on";
+  const requestedSkills = [
+    ...new Set(
+      String(formData.get("requestedSkills") ?? "")
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean),
+    ),
+  ].slice(0, 10);
   const collaboratorIds = [
     ...new Set(formData.getAll("collaborators").map(String).filter(Boolean)),
   ].filter((id) => id !== session.user.id);
@@ -291,9 +364,14 @@ export async function updateProject(
         cover: isUploadUrl(postedCover) ? postedCover : null,
         media: media.filter(isUploadUrl).slice(0, MAX_EXTRA_MEDIA),
         draft: true,
+        openToCollaboration: false,
+        requestedSkills: [],
       })
       .where(eq(project.id, projectId));
-    await setContributors(projectId, collaboratorIds.slice(0, MAX_COLLABORATORS));
+    await setContributors(
+      projectId,
+      collaboratorIds.slice(0, MAX_COLLABORATORS),
+    );
     await setTags(projectId, tags.slice(0, MAX_TAGS));
     return { ok: true, message: "Draft saved." };
   }
@@ -351,11 +429,23 @@ export async function updateProject(
   // A project a reviewer sent back for changes goes back into the queue on
   // resubmission. Anything already PUBLISHED stays published — edits to a
   // live project don't pull it back off the board.
-  const nextStatus = owned.status === "CHANGES_REQUESTED" ? "PENDING" : owned.status;
+  const nextStatus =
+    owned.status === "CHANGES_REQUESTED" ? "PENDING" : owned.status;
 
   await db
     .update(project)
-    .set({ title, summary, type, url: url || "", cover: postedCover, media, draft: false, status: nextStatus })
+    .set({
+      title,
+      summary,
+      type,
+      url: url || "",
+      cover: postedCover,
+      media,
+      draft: false,
+      status: nextStatus,
+      openToCollaboration,
+      requestedSkills: openToCollaboration ? requestedSkills : [],
+    })
     .where(eq(project.id, projectId));
   await setContributors(projectId, collaborators);
   await setTags(projectId, tags);
@@ -363,7 +453,8 @@ export async function updateProject(
   revalidatePath("/", "layout");
   return {
     ok: true,
-    message: nextStatus === "PENDING" ? "Saved — back with a reviewer." : "Saved.",
+    message:
+      nextStatus === "PENDING" ? "Saved — back with a reviewer." : "Saved.",
   };
 }
 

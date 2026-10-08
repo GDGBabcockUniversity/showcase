@@ -76,6 +76,8 @@ export default async function EditProjectPage({
               cover: owned.cover,
               media: owned.media,
               draft: owned.draft,
+              openToCollaboration: owned.openToCollaboration,
+              requestedSkills: owned.requestedSkills,
             }}
             collaborators={collaborators}
           />

@@ -43,6 +43,41 @@
       "when": 1789200000000,
       "tag": "0005_role_enum",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1791454725470,
+      "tag": "0006_condemned_stephen_strange",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1791454766991,
+      "tag": "0007_flippant_loa",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1791455121032,
+      "tag": "0008_black_white_queen",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1791456151003,
+      "tag": "0009_omniscient_doctor_doom",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1791457935540,
+      "tag": "0010_confirm_abuse_flags",
+      "breakpoints": true
     }
   ]
 }

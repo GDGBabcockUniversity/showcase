@@ -8,7 +8,13 @@ import { Textarea } from "@/components/ui/textarea";
 
 const initial: CommentState = { ok: false };
 
-export function CommentForm({ projectId }: { projectId: string }) {
+export function CommentForm({
+  projectId,
+  parentId,
+}: {
+  projectId: string;
+  parentId?: string;
+}) {
   const action = addComment.bind(null, projectId);
   const [state, formAction, pending] = useActionState(action, initial);
   const formRef = useRef<HTMLFormElement>(null);
@@ -19,16 +25,26 @@ export function CommentForm({ projectId }: { projectId: string }) {
   }, [state]);
 
   return (
-    <form ref={formRef} action={formAction} className="mt-4 flex flex-col gap-2">
+    <form
+      ref={formRef}
+      action={formAction}
+      className="mt-4 flex flex-col gap-2"
+    >
+      {parentId && <input type="hidden" name="parentId" value={parentId} />}
       <Textarea
         name="body"
         required
         maxLength={500}
         rows={3}
-        placeholder="What stood out to you?"
+        placeholder={parentId ? "Write a reply…" : "What stood out to you?"}
       />
-      <Button type="submit" size="sm" disabled={pending} className="self-end py-1.5">
-        {pending ? "Posting…" : "Comment"}
+      <Button
+        type="submit"
+        size="sm"
+        disabled={pending}
+        className="self-end py-1.5"
+      >
+        {pending ? "Posting…" : parentId ? "Reply" : "Comment"}
       </Button>
     </form>
   );

@@ -12,6 +12,8 @@ const LINKS = [
   { href: "/", label: "Home" },
   { href: "/this-month", label: "This Month" },
   { href: "/archive", label: "Archive" },
+  { href: "/following", label: "Following" },
+  { href: "/collections", label: "Collections" },
   { href: "/submit", label: "Submit" },
 ];
 
@@ -38,7 +40,9 @@ export async function Nav() {
         </Link>
 
         {/* Desktop View Elements */}
-        <Suspense fallback={<div className="hidden lg:block lg:max-w-xs lg:flex-1" />}>
+        <Suspense
+          fallback={<div className="hidden lg:block lg:max-w-xs lg:flex-1" />}
+        >
           <div className="hidden lg:block lg:max-w-xs lg:flex-1">
             <SearchBox />
           </div>

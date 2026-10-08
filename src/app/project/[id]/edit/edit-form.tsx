@@ -20,14 +20,19 @@ import {
   TITLE_MAX,
 } from "@/lib/limits";
 
-const labelClass = "block font-mono text-[10px] uppercase tracking-wider text-muted";
+const labelClass =
+  "block font-mono text-[10px] uppercase tracking-wider text-muted";
 const errClass = "mt-1 font-mono text-[11px] text-red";
 
 const initial: EditState = { ok: false };
 
 function CharCount({ value, max }: { value: string; max: number }) {
   const tone =
-    value.length >= max ? "text-red" : value.length > max * 0.9 ? "text-yellow" : "text-muted";
+    value.length >= max
+      ? "text-red"
+      : value.length > max * 0.9
+        ? "text-yellow"
+        : "text-muted";
   return (
     <span className={`font-mono text-[10px] tabular-nums ${tone}`}>
       {value.length}/{max}
@@ -49,6 +54,8 @@ export function EditForm({
     cover: string | null;
     media: string[];
     draft: boolean;
+    openToCollaboration: boolean;
+    requestedSkills: string[];
   };
   collaborators: { id: string; name: string; department: string | null }[];
 }) {
@@ -85,7 +92,9 @@ export function EditForm({
             aria-invalid={!!state.errors?.title}
             className="mt-2"
           />
-          {state.errors?.title && <p className={errClass}>{state.errors.title}</p>}
+          {state.errors?.title && (
+            <p className={errClass}>{state.errors.title}</p>
+          )}
         </div>
 
         <div className="lg:col-span-2">
@@ -103,7 +112,9 @@ export function EditForm({
             aria-invalid={!!state.errors?.summary}
             className="mt-2"
           />
-          {state.errors?.summary && <p className={errClass}>{state.errors.summary}</p>}
+          {state.errors?.summary && (
+            <p className={errClass}>{state.errors.summary}</p>
+          )}
         </div>
 
         <div>
@@ -144,12 +155,15 @@ export function EditForm({
             hint="PNG / JPG / WEBP · ≤ 4 MB"
             initial={project.cover ? [project.cover] : []}
           />
-          {state.errors?.cover && <p className={errClass}>{state.errors.cover}</p>}
+          {state.errors?.cover && (
+            <p className={errClass}>{state.errors.cover}</p>
+          )}
         </div>
 
         <div>
           <span className={labelClass}>
-            More media <span className="text-muted/70">(images or video, optional)</span>
+            More media{" "}
+            <span className="text-muted/70">(images or video, optional)</span>
           </span>
           <FileDrop
             id="media"
@@ -160,7 +174,9 @@ export function EditForm({
             hint={`Images or clips · up to ${MAX_EXTRA_MEDIA}`}
             initial={project.media}
           />
-          {state.errors?.media && <p className={errClass}>{state.errors.media}</p>}
+          {state.errors?.media && (
+            <p className={errClass}>{state.errors.media}</p>
+          )}
         </div>
 
         <fieldset className="lg:col-span-2">
@@ -182,12 +198,35 @@ export function EditForm({
               </label>
             ))}
           </div>
-          {state.errors?.type && <p className={errClass}>{state.errors.type}</p>}
+          {state.errors?.type && (
+            <p className={errClass}>{state.errors.type}</p>
+          )}
         </fieldset>
+
+        <div className="grid gap-3 rounded-xl border border-border p-4 lg:col-span-2">
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              name="openToCollaboration"
+              defaultChecked={project.openToCollaboration}
+            />
+            Looking for collaborators
+          </label>
+          <label htmlFor="requestedSkills" className={labelClass}>
+            Skills needed, comma separated
+          </label>
+          <Input
+            id="requestedSkills"
+            name="requestedSkills"
+            defaultValue={project.requestedSkills.join(", ")}
+            placeholder="Design, React, writing"
+          />
+        </div>
 
         <fieldset className="lg:col-span-2">
           <legend className={labelClass}>
-            Topics <span className="text-muted/70">(optional, up to {MAX_TAGS})</span>
+            Topics{" "}
+            <span className="text-muted/70">(optional, up to {MAX_TAGS})</span>
           </legend>
           <div className="mt-2 flex flex-wrap gap-2">
             {TAGS.map((t) => (
@@ -206,7 +245,9 @@ export function EditForm({
               </label>
             ))}
           </div>
-          {state.errors?.tags && <p className={errClass}>{state.errors.tags}</p>}
+          {state.errors?.tags && (
+            <p className={errClass}>{state.errors.tags}</p>
+          )}
         </fieldset>
 
         <div className="flex items-center justify-between gap-4 border-t border-border pt-5 lg:col-span-2">
@@ -219,7 +260,14 @@ export function EditForm({
 
           <span className="flex items-center gap-4">
             {project.draft && (
-              <Button type="submit" name="intent" value="draft" variant="quiet" size="none" disabled={pending}>
+              <Button
+                type="submit"
+                name="intent"
+                value="draft"
+                variant="quiet"
+                size="none"
+                disabled={pending}
+              >
                 Save draft
               </Button>
             )}
@@ -256,7 +304,12 @@ export function EditForm({
             >
               {deleting ? "Deleting…" : "Yes, delete it"}
             </Button>
-            <Button type="button" variant="ghost" size="sm" onClick={() => setConfirming(false)}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setConfirming(false)}
+            >
               Cancel
             </Button>
           </div>
