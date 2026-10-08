@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
-import { eq, or } from "drizzle-orm";
+import { and, eq, or } from "drizzle-orm";
 import { Nav } from "@/components/nav";
 import { Footer } from "@/components/footer";
 import { Dots } from "@/components/dots";
@@ -14,9 +14,10 @@ import {
   getLikedProjectIds,
   getPublicProjectsByUser,
 } from "@/lib/projects";
+import { follow } from "@/db/schema";
+import { FollowButton, ShareLink } from "@/components/community-controls";
 
 async function getProfile(handle: string) {
-  
   const rows = await db
     .select({
       id: user.id,
@@ -41,9 +42,26 @@ export async function generateMetadata({
   const { username } = await params;
   const profile = await getProfile(username);
   if (!profile) return { title: "Profile not found" };
+  const title = `${profile.name} — GDG Babcock Showcase`;
+  const description = `Projects ${profile.name} has shipped on the board.`;
   return {
-    title: `${profile.name} — GDG Babcock Showcase`,
-    description: `Projects ${profile.name} has shipped on the board.`,
+    title,
+    description,
+    openGraph: profile.image
+      ? {
+          title,
+          description,
+          images: [profile.image],
+        }
+      : undefined,
+    twitter: profile.image
+      ? {
+          card: "summary_large_image",
+          title,
+          description,
+          images: [profile.image],
+        }
+      : undefined,
   };
 }
 
@@ -59,9 +77,25 @@ export default async function ProfilePage({
   const session = await auth.api.getSession({ headers: await headers() });
   const [projects, likedIds, savedIds] = await Promise.all([
     getPublicProjectsByUser(profile.id),
-    session ? getLikedProjectIds(session.user.id) : Promise.resolve(new Set<string>()),
-    session ? getBookmarkedProjectIds(session.user.id) : Promise.resolve(new Set<string>()),
+    session
+      ? getLikedProjectIds(session.user.id)
+      : Promise.resolve(new Set<string>()),
+    session
+      ? getBookmarkedProjectIds(session.user.id)
+      : Promise.resolve(new Set<string>()),
   ]);
+  const [makerFollow] =
+    session && session.user.id !== profile.id
+      ? await db
+          .select({ id: follow.id })
+          .from(follow)
+          .where(
+            and(
+              eq(follow.userId, session.user.id),
+              eq(follow.makerId, profile.id),
+            ),
+          )
+      : [];
 
   const memberSince = profile.createdAt.toLocaleDateString("en-US", {
     month: "long",
@@ -89,7 +123,8 @@ export default async function ProfilePage({
             <span
               className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full font-display text-2xl font-semibold text-white"
               style={{
-                background: "linear-gradient(135deg, var(--color-blue), var(--color-green))",
+                background:
+                  "linear-gradient(135deg, var(--color-blue), var(--color-green))",
               }}
               aria-hidden
             >
@@ -101,7 +136,9 @@ export default async function ProfilePage({
               {profile.name}
             </h1>
             {profile.username && (
-              <p className="font-mono text-sm text-muted">@{profile.username}</p>
+              <p className="font-mono text-sm text-muted">
+                @{profile.username}
+              </p>
             )}
             {(profile.department || profile.level) && (
               <p className="mt-1 text-sm text-muted">
@@ -111,11 +148,22 @@ export default async function ProfilePage({
               </p>
             )}
             {profile.bio && (
-              <p className="mt-2 max-w-xl text-sm leading-relaxed text-fg">{profile.bio}</p>
+              <p className="mt-2 max-w-xl text-sm leading-relaxed text-fg">
+                {profile.bio}
+              </p>
             )}
             <p className="mt-1 font-mono text-[10px] uppercase tracking-wider text-muted">
               Member since {memberSince} · {projects.length} on the board
             </p>
+            <div className="mt-3 flex flex-wrap gap-3">
+              <ShareLink
+                url={`/u/${profile.username ?? profile.id}`}
+                title="profile"
+              />
+              {session && session.user.id !== profile.id && (
+                <FollowButton makerId={profile.id} following={!!makerFollow} />
+              )}
+            </div>
           </div>
         </section>
 

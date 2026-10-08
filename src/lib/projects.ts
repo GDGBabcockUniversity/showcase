@@ -1,4 +1,17 @@
-import { and, count, desc, eq, gte, ilike, inArray, isNotNull, isNull, lt, or, sql } from "drizzle-orm";
+import {
+  and,
+  count,
+  desc,
+  eq,
+  gte,
+  ilike,
+  inArray,
+  isNotNull,
+  isNull,
+  lt,
+  or,
+  sql,
+} from "drizzle-orm";
 import { db } from "@/db";
 import {
   bookmark,
@@ -16,7 +29,11 @@ import type { ProjectType } from "@/lib/departments";
 import type { Interactions, InteractionType } from "@/lib/interaction-types";
 import type { ProjectStatus } from "@/lib/project-status";
 import { recordInteraction } from "@/lib/interactions";
-import { cohortBounds, cohortMonthOf, firstCommentCounts } from "@/lib/signal-scores";
+import {
+  cohortBounds,
+  cohortMonthOf,
+  firstCommentCounts,
+} from "@/lib/signal-scores";
 
 export type Project = {
   id: string;
@@ -33,6 +50,8 @@ export type Project = {
   draft: boolean;
   status: ProjectStatus;
   publishedAt: Date | null;
+  openToCollaboration: boolean;
+  requestedSkills: string[];
   createdAt: Date;
   signalScore: number;
 } & Interactions;
@@ -54,6 +73,8 @@ const projectColumns = {
   draft: project.draft,
   status: project.status,
   publishedAt: project.publishedAt,
+  openToCollaboration: project.openToCollaboration,
+  requestedSkills: project.requestedSkills,
   createdAt: project.createdAt,
   by: user.name,
 };
@@ -71,6 +92,8 @@ type ProjectRow = {
   draft: boolean;
   status: string;
   publishedAt: Date | null;
+  openToCollaboration: boolean;
+  requestedSkills: string[];
   createdAt: Date;
   by: string;
 };
@@ -80,7 +103,11 @@ async function countsByProject(type: InteractionType) {
   const rows = await db
     .select({ projectId: interaction.projectId, count: count() })
     .from(interaction)
-    .where(eq(interaction.type, type))
+    .where(
+      type === "comment"
+        ? and(eq(interaction.type, type), isNull(interaction.parentId))
+        : eq(interaction.type, type),
+    )
     .groupBy(interaction.projectId);
   return new Map(rows.map((r) => [r.projectId, Number(r.count)]));
 }
@@ -90,13 +117,23 @@ async function countFor(type: InteractionType, projectId: string) {
   const rows = await db
     .select({ count: count() })
     .from(interaction)
-    .where(and(eq(interaction.type, type), eq(interaction.projectId, projectId)));
+    .where(
+      type === "comment"
+        ? and(
+            eq(interaction.type, type),
+            eq(interaction.projectId, projectId),
+            isNull(interaction.parentId),
+          )
+        : and(eq(interaction.type, type), eq(interaction.projectId, projectId)),
+    );
   return Number(rows[0]?.count ?? 0);
 }
 
 // Grouped tag ids across every project in one query — mirrors countsByProject.
 async function tagsByProject() {
-  const rows = await db.select({ projectId: projectTag.projectId, tagId: projectTag.tagId }).from(projectTag);
+  const rows = await db
+    .select({ projectId: projectTag.projectId, tagId: projectTag.tagId })
+    .from(projectTag);
   const map = new Map<string, string[]>();
   for (const r of rows) {
     const list = map.get(r.projectId) ?? [];
@@ -108,7 +145,10 @@ async function tagsByProject() {
 
 // Single-project tag ids — cheaper than the grouped query for one id.
 async function tagsFor(projectId: string): Promise<string[]> {
-  const rows = await db.select({ tagId: projectTag.tagId }).from(projectTag).where(eq(projectTag.projectId, projectId));
+  const rows = await db
+    .select({ tagId: projectTag.tagId })
+    .from(projectTag)
+    .where(eq(projectTag.projectId, projectId));
   return rows.map((r) => r.tagId);
 }
 
@@ -116,7 +156,12 @@ async function tagsFor(projectId: string): Promise<string[]> {
 // project that hasn't had a batch run yet simply shows 0, same as a project
 // with genuinely no signal.
 async function allSignalScores() {
-  const rows = await db.select({ projectId: signalScore.projectId, score: signalScore.signalScore }).from(signalScore);
+  const rows = await db
+    .select({
+      projectId: signalScore.projectId,
+      score: signalScore.signalScore,
+    })
+    .from(signalScore);
   return new Map(rows.map((r) => [r.projectId, r.score]));
 }
 
@@ -152,7 +197,8 @@ async function attachSignal(rows: ProjectRow[]): Promise<Project[]> {
 
 // Every public read goes through this: drafts and anything still in review
 // belong to their owner only.
-const published = () => and(eq(project.draft, false), eq(project.status, "PUBLISHED"));
+const published = () =>
+  and(eq(project.draft, false), eq(project.status, "PUBLISHED"));
 
 export async function getAllProjects(): Promise<Project[]> {
   const rows = await db
@@ -161,6 +207,22 @@ export async function getAllProjects(): Promise<Project[]> {
     .innerJoin(user, eq(project.userId, user.id))
     .where(published());
   return attachSignal(rows);
+}
+
+export async function getPublishedProjectsByIds(
+  ids: string[],
+): Promise<Project[]> {
+  if (ids.length === 0) return [];
+  const rows = await db
+    .select(projectColumns)
+    .from(project)
+    .innerJoin(user, eq(project.userId, user.id))
+    .where(and(inArray(project.id, ids), published()));
+  const projects = await attachSignal(rows);
+  const byId = new Map(projects.map((item) => [item.id, item]));
+  return ids
+    .map((id) => byId.get(id))
+    .filter((item): item is Project => !!item);
 }
 
 export async function getProjectById(id: string): Promise<Project | undefined> {
@@ -214,14 +276,24 @@ export async function getTopThreeProjects(): Promise<Project[]> {
   const demoted = await db
     .select({ projectId: rankingOverride.projectId })
     .from(rankingOverride)
-    .where(and(eq(rankingOverride.cohortMonth, cohortMonth), eq(rankingOverride.action, "DEMOTE")));
+    .where(
+      and(
+        eq(rankingOverride.cohortMonth, cohortMonth),
+        eq(rankingOverride.action, "DEMOTE"),
+      ),
+    );
   const demotedIds = new Set(demoted.map((d) => d.projectId));
 
   const eligible = rows.filter((r) => !demotedIds.has(r.id));
   const comments = await firstCommentCounts(eligible.map((r) => r.id));
 
   const orderedIds = eligible
-    .map((r) => ({ id: r.id, score: r.score, commentCount: comments.get(r.id) ?? 0, publishedAt: r.publishedAt }))
+    .map((r) => ({
+      id: r.id,
+      score: r.score,
+      commentCount: comments.get(r.id) ?? 0,
+      publishedAt: r.publishedAt,
+    }))
     .sort(
       (a, b) =>
         b.score - a.score ||
@@ -240,20 +312,30 @@ export async function getTopThreeProjects(): Promise<Project[]> {
     .where(inArray(project.id, orderedIds));
 
   const byId = new Map(topRows.map((r) => [r.id, r]));
-  const ordered = orderedIds.map((id) => byId.get(id)).filter((r): r is ProjectRow => !!r);
+  const ordered = orderedIds
+    .map((id) => byId.get(id))
+    .filter((r): r is ProjectRow => !!r);
 
   return attachSignal(ordered);
 }
 
 // Backs /archive — every published project whose publishedAt falls in the
 // given "YYYY-MM" cohort month, same bounds the scoring pipeline uses.
-export async function getProjectsByCohortMonth(cohortMonth: string): Promise<Project[]> {
+export async function getProjectsByCohortMonth(
+  cohortMonth: string,
+): Promise<Project[]> {
   const { start, end } = cohortBounds(cohortMonth);
   const rows = await db
     .select(projectColumns)
     .from(project)
     .innerJoin(user, eq(project.userId, user.id))
-    .where(and(eq(project.status, "PUBLISHED"), gte(project.publishedAt, start), lt(project.publishedAt, end)));
+    .where(
+      and(
+        eq(project.status, "PUBLISHED"),
+        gte(project.publishedAt, start),
+        lt(project.publishedAt, end),
+      ),
+    );
   return attachSignal(rows);
 }
 
@@ -266,7 +348,9 @@ export type ArchivePage = { projects: Project[]; nextCursor: string | null };
 // no specific month/year is picked. The cursor is the last row's
 // publishedAt ISO string; each page fetches one extra row to know whether
 // there's more without a separate count query.
-export async function getArchivedProjectsPage(cursor?: string | null): Promise<ArchivePage> {
+export async function getArchivedProjectsPage(
+  cursor?: string | null,
+): Promise<ArchivePage> {
   const { start: currentMonthStart } = cohortBounds(cohortMonthOf(new Date()));
   const before = cursor ? new Date(cursor) : currentMonthStart;
 
@@ -274,7 +358,9 @@ export async function getArchivedProjectsPage(cursor?: string | null): Promise<A
     .select(projectColumns)
     .from(project)
     .innerJoin(user, eq(project.userId, user.id))
-    .where(and(eq(project.status, "PUBLISHED"), lt(project.publishedAt, before)))
+    .where(
+      and(eq(project.status, "PUBLISHED"), lt(project.publishedAt, before)),
+    )
     .orderBy(desc(project.publishedAt))
     .limit(ARCHIVE_PAGE_SIZE + 1);
 
@@ -282,7 +368,8 @@ export async function getArchivedProjectsPage(cursor?: string | null): Promise<A
   const page = rows.slice(0, ARCHIVE_PAGE_SIZE);
   const projects = await attachSignal(page);
   const last = page[page.length - 1];
-  const nextCursor = hasMore && last?.publishedAt ? last.publishedAt.toISOString() : null;
+  const nextCursor =
+    hasMore && last?.publishedAt ? last.publishedAt.toISOString() : null;
 
   return { projects, nextCursor };
 }
@@ -291,7 +378,9 @@ export async function getArchivedProjectsPage(cursor?: string | null): Promise<A
 // powers the archive's "browse by month" shortcuts.
 export async function getPublishedCohortMonths(): Promise<string[]> {
   const rows = await db
-    .selectDistinct({ month: sql<string>`to_char(${project.publishedAt}, 'YYYY-MM')` })
+    .selectDistinct({
+      month: sql<string>`to_char(${project.publishedAt}, 'YYYY-MM')`,
+    })
     .from(project)
     .where(and(eq(project.status, "PUBLISHED"), isNotNull(project.publishedAt)))
     .orderBy(desc(sql`to_char(${project.publishedAt}, 'YYYY-MM')`));
@@ -312,7 +401,10 @@ export async function getProjectMakers(projectId: string) {
     .from(projectContributor)
     .where(eq(projectContributor.projectId, projectId));
 
-  const ids = [row.userId, ...contributors.map((c) => c.userId).filter((id) => id !== row.userId)];
+  const ids = [
+    row.userId,
+    ...contributors.map((c) => c.userId).filter((id) => id !== row.userId),
+  ];
   const people = await db
     .select({
       id: user.id,
@@ -332,7 +424,9 @@ export async function getProjectMakers(projectId: string) {
 }
 
 // A profile only shows what's actually on the board.
-export async function getPublicProjectsByUser(userId: string): Promise<Project[]> {
+export async function getPublicProjectsByUser(
+  userId: string,
+): Promise<Project[]> {
   const rows = await db
     .select(projectColumns)
     .from(project)
@@ -389,7 +483,10 @@ export async function getLikedProjects(userId: string): Promise<Project[]> {
     .select(projectColumns)
     .from(project)
     .innerJoin(user, eq(project.userId, user.id))
-    .innerJoin(interaction, and(eq(interaction.projectId, project.id), eq(interaction.type, "like")))
+    .innerJoin(
+      interaction,
+      and(eq(interaction.projectId, project.id), eq(interaction.type, "like")),
+    )
     .where(and(eq(interaction.userId, userId), published()))
     .orderBy(desc(interaction.createdAt));
   return attachSignal(rows);
@@ -453,7 +550,9 @@ export async function getLikedProjectIds(userId: string): Promise<Set<string>> {
   return new Set(rows.map((r) => r.projectId));
 }
 
-export async function getBookmarkedProjects(userId: string): Promise<Project[]> {
+export async function getBookmarkedProjects(
+  userId: string,
+): Promise<Project[]> {
   const rows = await db
     .select(projectColumns)
     .from(project)
@@ -464,7 +563,9 @@ export async function getBookmarkedProjects(userId: string): Promise<Project[]> 
   return attachSignal(rows);
 }
 
-export async function getBookmarkedProjectIds(userId: string): Promise<Set<string>> {
+export async function getBookmarkedProjectIds(
+  userId: string,
+): Promise<Set<string>> {
   const rows = await db
     .select({ projectId: bookmark.projectId })
     .from(bookmark)
@@ -485,6 +586,7 @@ export async function getOwnedProject(id: string, userId: string) {
 
 export type ProjectComment = {
   id: string;
+  parentId: string | null;
   body: string;
   createdAt: Date;
   by: string;
@@ -495,10 +597,13 @@ export type ProjectComment = {
 
 // Hidden (moderated) comments are excluded here too — "hidden" means hidden
 // from the public feed, not just from scoring.
-export async function getCommentsForProject(projectId: string): Promise<ProjectComment[]> {
-  return db
+export async function getCommentsForProject(
+  projectId: string,
+): Promise<ProjectComment[]> {
+  const rows = await db
     .select({
       id: interaction.id,
+      parentId: interaction.parentId,
       body: interaction.body,
       createdAt: interaction.createdAt,
       by: user.name,
@@ -509,13 +614,33 @@ export async function getCommentsForProject(projectId: string): Promise<ProjectC
     .from(interaction)
     .innerJoin(user, eq(interaction.userId, user.id))
     .leftJoin(hiddenComment, eq(hiddenComment.interactionId, interaction.id))
-    .where(and(eq(interaction.projectId, projectId), eq(interaction.type, "comment"), isNull(hiddenComment.interactionId)))
-    .orderBy(desc(interaction.createdAt))
-    .then((rows) => rows.map((r) => ({ ...r, body: r.body ?? "" })));
+    .where(
+      and(
+        eq(interaction.projectId, projectId),
+        eq(interaction.type, "comment"),
+        isNull(hiddenComment.interactionId),
+      ),
+    )
+    .orderBy(desc(interaction.createdAt));
+  const parentIds = rows.flatMap((row) => (row.parentId ? [row.parentId] : []));
+  if (parentIds.length === 0)
+    return rows.map((row) => ({ ...row, body: row.body ?? "" }));
+  const hiddenParents = await db
+    .select({ id: hiddenComment.interactionId })
+    .from(hiddenComment)
+    .where(inArray(hiddenComment.interactionId, parentIds));
+  const hiddenIds = new Set(hiddenParents.map((row) => row.id));
+  return rows
+    .filter((row) => !row.parentId || !hiddenIds.has(row.parentId))
+    .map((row) => ({ ...row, body: row.body ?? "" }));
 }
 
 // Takes an already-resolved actor (and raw IP) so the caller can defer this
 // with `after()` without touching request APIs inside the callback.
-export async function recordView(projectId: string, actor: Actor, ip?: string | null) {
+export async function recordView(
+  projectId: string,
+  actor: Actor,
+  ip?: string | null,
+) {
   await recordInteraction({ projectId, type: "view", actor, ip });
 }

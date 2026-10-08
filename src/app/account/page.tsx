@@ -19,10 +19,18 @@ import { STATUS_LABEL, type ProjectStatus } from "@/lib/project-status";
 import { AvatarUpload } from "@/components/avatar-upload";
 import { ProfileForm } from "@/components/profile-form";
 import { AccountTabs } from "./account-tabs";
+import { and, eq } from "drizzle-orm";
+import { db } from "@/db";
+import { collaborationRequest, project, user as userTable } from "@/db/schema";
+import {
+  closeCollaborationRequest,
+  reportCollaborationRequest,
+} from "@/app/community-actions";
 
 export const metadata: Metadata = {
   title: "Account — GDG Babcock Showcase",
-  description: "Your profile, the projects you've shipped, and what you've liked.",
+  description:
+    "Your profile, the projects you've shipped, and what you've liked.",
 };
 
 // Three buckets: unfinished, submitted but not yet published, and on the board.
@@ -34,7 +42,15 @@ function split(shipped: Project[]) {
   };
 }
 
-function EmptyState({ text, href, cta }: { text: string; href: string; cta: string }) {
+function EmptyState({
+  text,
+  href,
+  cta,
+}: {
+  text: string;
+  href: string;
+  cta: string;
+}) {
   return (
     <p className="rounded-2xl border border-border bg-surface py-12 text-center text-sm text-muted">
       {text}{" "}
@@ -57,6 +73,19 @@ export default async function AccountPage() {
     getLikedProjectIds(user.id),
     getBookmarkedProjectIds(user.id),
   ]);
+  const requests = await db
+    .select({
+      id: collaborationRequest.id,
+      message: collaborationRequest.message,
+      sender: userTable.name,
+      title: project.title,
+    })
+    .from(collaborationRequest)
+    .innerJoin(project, eq(project.id, collaborationRequest.projectId))
+    .innerJoin(userTable, eq(userTable.id, collaborationRequest.senderId))
+    .where(
+      and(eq(project.userId, user.id), eq(collaborationRequest.status, "OPEN")),
+    );
 
   const { drafts, inReview, live } = split(shipped);
 
@@ -127,7 +156,52 @@ export default async function AccountPage() {
           />
         </section>
 
+        {requests.length > 0 && (
+          <section className="mt-10">
+            <h2 className="font-display text-xl font-semibold">
+              Collaboration requests
+            </h2>
+            <ul className="mt-3 grid gap-3">
+              {requests.map((request) => (
+                <li
+                  key={request.id}
+                  className="rounded-xl border border-border p-4"
+                >
+                  <p className="text-xs text-muted">
+                    {request.sender} · {request.title}
+                  </p>
+                  <p className="mt-2 whitespace-pre-wrap text-sm">
+                    {request.message}
+                  </p>
+                  <div className="mt-3 flex gap-4">
+                    <form
+                      action={closeCollaborationRequest.bind(null, request.id)}
+                    >
+                      <button className="text-xs text-blue">
+                        Close request
+                      </button>
+                    </form>
+                    <form
+                      action={reportCollaborationRequest.bind(null, request.id)}
+                    >
+                      <button className="text-xs text-red">Report</button>
+                    </form>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
         {/* Signal earned across their own projects */}
+        <p className="mt-6">
+          <Link
+            href="/account/analytics"
+            className="text-sm text-blue hover:underline"
+          >
+            View project analytics →
+          </Link>
+        </p>
         <section className="mt-8">
           <p className="eyebrow">Signal earned</p>
           <div className="mt-4 grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-border bg-border sm:grid-cols-5">
@@ -148,7 +222,11 @@ export default async function AccountPage() {
         </section>
 
         <AccountTabs
-          counts={{ shipped: shipped.length, liked: liked.length, saved: saved.length }}
+          counts={{
+            shipped: shipped.length,
+            liked: liked.length,
+            saved: saved.length,
+          }}
           shipped={
             <>
               <DraftList drafts={drafts} />
@@ -217,7 +295,10 @@ function InReviewList({ projects }: { projects: Project[] }) {
       </p>
       <ul className="mt-2">
         {projects.map((p) => (
-          <li key={p.id} className="border-t border-blue/20 py-2 first:border-t-0">
+          <li
+            key={p.id}
+            className="border-t border-blue/20 py-2 first:border-t-0"
+          >
             <Link
               href={`/project/${p.id}/edit`}
               className="flex items-baseline justify-between gap-4 text-sm hover:text-blue"
@@ -240,11 +321,15 @@ function DraftList({ drafts }: { drafts: Project[] }) {
   return (
     <div className="mt-4 rounded-2xl border border-yellow/30 bg-yellow/5 p-4">
       <p className="font-mono text-[10px] uppercase tracking-wider text-yellow">
-        {drafts.length} draft{drafts.length === 1 ? "" : "s"} — only you can see these
+        {drafts.length} draft{drafts.length === 1 ? "" : "s"} — only you can see
+        these
       </p>
       <ul className="mt-2">
         {drafts.map((p) => (
-          <li key={p.id} className="border-t border-yellow/20 py-2 first:border-t-0">
+          <li
+            key={p.id}
+            className="border-t border-yellow/20 py-2 first:border-t-0"
+          >
             <Link
               href={`/project/${p.id}/edit`}
               className="flex items-baseline justify-between gap-4 text-sm hover:text-blue"
@@ -280,7 +365,11 @@ function ProjectList({
     <div>
       {projects.map((p) => (
         <div key={p.id} className="relative">
-          <ProductRow p={p} liked={likedIds.has(p.id)} saved={savedIds.has(p.id)} />
+          <ProductRow
+            p={p}
+            liked={likedIds.has(p.id)}
+            saved={savedIds.has(p.id)}
+          />
           {owned && (
             <Link
               href={`/project/${p.id}/edit`}

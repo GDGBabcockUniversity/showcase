@@ -5,11 +5,13 @@ import {
   varchar,
   timestamp,
   boolean,
+  AnyPgColumn,
   jsonb,
   integer,
   doublePrecision,
   uniqueIndex,
   index,
+  check,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { SUMMARY_MAX, TITLE_MAX } from "@/lib/limits";
@@ -46,7 +48,9 @@ export const user = pgTable("user", {
 
 export const session = pgTable("session", {
   id: text("id").primaryKey(),
-  userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  userId: text("user_id")
+    .notNull()
+    .references(() => user.id, { onDelete: "cascade" }),
   token: text("token").notNull().unique(),
   expiresAt: timestamp("expires_at").notNull(),
   ipAddress: text("ip_address"),
@@ -57,7 +61,9 @@ export const session = pgTable("session", {
 
 export const account = pgTable("account", {
   id: text("id").primaryKey(),
-  userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  userId: text("user_id")
+    .notNull()
+    .references(() => user.id, { onDelete: "cascade" }),
   providerId: text("provider_id").notNull(),
   accountId: text("account_id").notNull(),
   accessToken: text("access_token"),
@@ -82,7 +88,9 @@ export const verification = pgTable("verification", {
 
 export const project = pgTable("project", {
   id: text("id").primaryKey(),
-  userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  userId: text("user_id")
+    .notNull()
+    .references(() => user.id, { onDelete: "cascade" }),
 
   title: varchar("title", { length: TITLE_MAX }).notNull(),
   summary: varchar("summary", { length: SUMMARY_MAX }).notNull(),
@@ -93,6 +101,13 @@ export const project = pgTable("project", {
   draft: boolean("draft").notNull().default(false),
   department: text("department").references(() => department.id),
   status: text("status").notNull().default("PENDING"),
+  openToCollaboration: boolean("open_to_collaboration")
+    .notNull()
+    .default(false),
+  requestedSkills: jsonb("requested_skills")
+    .$type<string[]>()
+    .notNull()
+    .default([]),
   publishedAt: timestamp("published_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
@@ -112,8 +127,12 @@ export const projectTag = pgTable(
   "project_tag",
   {
     id: text("id").primaryKey(),
-    projectId: text("project_id").notNull().references(() => project.id, { onDelete: "cascade" }),
-    tagId: text("tag_id").notNull().references(() => tag.id, { onDelete: "cascade" }),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => project.id, { onDelete: "cascade" }),
+    tagId: text("tag_id")
+      .notNull()
+      .references(() => tag.id, { onDelete: "cascade" }),
   },
   (t) => [uniqueIndex("project_tag_project_tag_idx").on(t.projectId, t.tagId)],
 );
@@ -122,18 +141,32 @@ export const projectContributor = pgTable(
   "project_contributor",
   {
     id: text("id").primaryKey(),
-    projectId: text("project_id").notNull().references(() => project.id, { onDelete: "cascade" }),
-    userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => project.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
-  (t) => [uniqueIndex("project_contributor_project_user_idx").on(t.projectId, t.userId)],
+  (t) => [
+    uniqueIndex("project_contributor_project_user_idx").on(
+      t.projectId,
+      t.userId,
+    ),
+  ],
 );
 
 export const interaction = pgTable(
   "interaction",
   {
     id: text("id").primaryKey(),
-    projectId: text("project_id").notNull().references(() => project.id, { onDelete: "cascade" }),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => project.id, { onDelete: "cascade" }),
+    parentId: text("parent_id").references((): AnyPgColumn => interaction.id, {
+      onDelete: "cascade",
+    }),
     userId: text("user_id").references(() => user.id, { onDelete: "cascade" }),
     fingerprint: text("fingerprint").notNull(),
     type: text("type").notNull(),
@@ -144,7 +177,13 @@ export const interaction = pgTable(
     uniqueIndex("interaction_like_unique_idx")
       .on(t.projectId, t.userId, t.type)
       .where(sql`${t.type} = 'like'`),
-    index("interaction_dedupe_idx").on(t.projectId, t.fingerprint, t.type, t.createdAt),
+    index("interaction_dedupe_idx").on(
+      t.projectId,
+      t.fingerprint,
+      t.type,
+      t.createdAt,
+    ),
+    index("interaction_parent_idx").on(t.parentId),
   ],
 );
 
@@ -152,8 +191,12 @@ export const interaction = pgTable(
 // public aggregate counts never carries PII. Feeds the abuse-flag query only.
 export const interactionLog = pgTable("interaction_log", {
   id: text("id").primaryKey(),
-  interactionId: text("interaction_id").notNull().references(() => interaction.id, { onDelete: "cascade" }),
-  projectId: text("project_id").notNull().references(() => project.id, { onDelete: "cascade" }),
+  interactionId: text("interaction_id")
+    .notNull()
+    .references(() => interaction.id, { onDelete: "cascade" }),
+  projectId: text("project_id")
+    .notNull()
+    .references(() => project.id, { onDelete: "cascade" }),
   ip: text("ip").notNull(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
@@ -162,9 +205,13 @@ export const interactionLog = pgTable("interaction_log", {
 // score — the scoring query excludes any interaction with a row here — but
 // stays in `interaction` so nothing is actually deleted.
 export const hiddenComment = pgTable("hidden_comment", {
-  interactionId: text("interaction_id").primaryKey().references(() => interaction.id, { onDelete: "cascade" }),
+  interactionId: text("interaction_id")
+    .primaryKey()
+    .references(() => interaction.id, { onDelete: "cascade" }),
   hiddenAt: timestamp("hidden_at").notNull().defaultNow(),
-  hiddenBy: text("hidden_by").notNull().references(() => user.id),
+  hiddenBy: text("hidden_by")
+    .notNull()
+    .references(() => user.id),
 });
 
 // Materialized nightly by the batch job in src/lib/signal-scores.ts — never
@@ -175,7 +222,9 @@ export const hiddenComment = pgTable("hidden_comment", {
 export const signalScore = pgTable(
   "signal_score",
   {
-    projectId: text("project_id").primaryKey().references(() => project.id, { onDelete: "cascade" }),
+    projectId: text("project_id")
+      .primaryKey()
+      .references(() => project.id, { onDelete: "cascade" }),
     cohortMonth: text("cohort_month").notNull(),
     signalScore: doublePrecision("signal_score").notNull(),
     computedAt: timestamp("computed_at").notNull().defaultNow(),
@@ -185,11 +234,15 @@ export const signalScore = pgTable(
 
 export const rankingOverride = pgTable("ranking_override", {
   id: text("id").primaryKey(),
-  projectId: text("project_id").notNull().references(() => project.id, { onDelete: "cascade" }),
+  projectId: text("project_id")
+    .notNull()
+    .references(() => project.id, { onDelete: "cascade" }),
   cohortMonth: text("cohort_month").notNull(),
   action: text("action").notNull(),
   reason: text("reason").notNull(),
-  actedBy: text("acted_by").notNull().references(() => user.id),
+  actedBy: text("acted_by")
+    .notNull()
+    .references(() => user.id),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -200,21 +253,127 @@ export const abuseFlag = pgTable(
   "abuse_flag",
   {
     id: text("id").primaryKey(),
-    projectId: text("project_id").notNull().references(() => project.id, { onDelete: "cascade" }),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => project.id, { onDelete: "cascade" }),
     ip: text("ip").notNull(),
     day: text("day").notNull(),
     count: integer("count").notNull(),
     reviewed: boolean("reviewed").notNull().default(false),
+    abusive: boolean("abusive").notNull().default(false),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
-  (t) => [uniqueIndex("abuse_flag_project_ip_day_idx").on(t.projectId, t.ip, t.day)],
+  (t) => [
+    uniqueIndex("abuse_flag_project_ip_day_idx").on(t.projectId, t.ip, t.day),
+  ],
 );
 
-export const bookmark = pgTable("bookmark", {
+export const bookmark = pgTable(
+  "bookmark",
+  {
+    id: text("id").primaryKey(),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => project.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("bookmark_project_user_idx").on(t.projectId, t.userId)],
+);
+
+// A follow targets either a maker or a project. Muting keeps the relationship
+// but removes its activity from the follower's feed.
+export const follow = pgTable(
+  "follow",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    makerId: text("maker_id").references(() => user.id, {
+      onDelete: "cascade",
+    }),
+    projectId: text("project_id").references(() => project.id, {
+      onDelete: "cascade",
+    }),
+    muted: boolean("muted").notNull().default(false),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    check(
+      "follow_one_target_check",
+      sql.raw(`("maker_id" IS NOT NULL) <> ("project_id" IS NOT NULL)`),
+    ),
+    uniqueIndex("follow_user_maker_idx").on(t.userId, t.makerId),
+    uniqueIndex("follow_user_project_idx").on(t.userId, t.projectId),
+  ],
+);
+
+export const collaborationRequest = pgTable(
+  "collaboration_request",
+  {
+    id: text("id").primaryKey(),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => project.id, { onDelete: "cascade" }),
+    senderId: text("sender_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    message: varchar("message", { length: 1000 }).notNull(),
+    status: text("status").notNull().default("OPEN"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("collaboration_request_open_unique_idx")
+      .on(t.projectId, t.senderId)
+      .where(sql.raw(`"status" = 'OPEN'`)),
+  ],
+);
+
+export const collaborationRequestReport = pgTable(
+  "collaboration_request_report",
+  {
+    requestId: text("request_id")
+      .primaryKey()
+      .references(() => collaborationRequest.id, { onDelete: "cascade" }),
+    reportedBy: text("reported_by")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    reason: varchar("reason", { length: 500 }).notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+);
+
+export const showcaseCollection = pgTable("showcase_collection", {
   id: text("id").primaryKey(),
-  projectId: text("project_id").notNull().references(() => project.id, { onDelete: "cascade" }),
-  userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  slug: text("slug").notNull().unique(),
+  title: varchar("title", { length: 100 }).notNull(),
+  description: varchar("description", { length: 500 }).notNull(),
+  createdBy: text("created_by")
+    .notNull()
+    .references(() => user.id),
+  published: boolean("published").notNull().default(false),
   createdAt: timestamp("created_at").notNull().defaultNow(),
-}, (t) => [
-  uniqueIndex("bookmark_project_user_idx").on(t.projectId, t.userId),
-]);
+});
+
+export const showcaseCollectionProject = pgTable(
+  "showcase_collection_project",
+  {
+    id: text("id").primaryKey(),
+    collectionId: text("collection_id")
+      .notNull()
+      .references(() => showcaseCollection.id, { onDelete: "cascade" }),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => project.id, { onDelete: "cascade" }),
+    position: integer("position").notNull().default(0),
+  },
+  (t) => [
+    uniqueIndex("showcase_collection_project_idx").on(
+      t.collectionId,
+      t.projectId,
+    ),
+  ],
+);

@@ -23,17 +23,22 @@ export const metadata: Metadata = {
 export default async function SearchPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ q?: string; skill?: string; open?: string }>;
 }) {
   const sp = await searchParams;
   const query = sp.q?.trim().toLowerCase() ?? "";
+  const skill = sp.skill?.trim().toLowerCase() ?? "";
 
   const session = await auth.api.getSession({ headers: await headers() });
   const [projects, people, likedIds, savedIds] = await Promise.all([
-    query ? getAllProjects() : Promise.resolve([]),
+    query || skill || sp.open ? getAllProjects() : Promise.resolve([]),
     query ? searchPeople(query) : Promise.resolve([]),
-    session ? getLikedProjectIds(session.user.id) : Promise.resolve(new Set<string>()),
-    session ? getBookmarkedProjectIds(session.user.id) : Promise.resolve(new Set<string>()),
+    session
+      ? getLikedProjectIds(session.user.id)
+      : Promise.resolve(new Set<string>()),
+    session
+      ? getBookmarkedProjectIds(session.user.id)
+      : Promise.resolve(new Set<string>()),
   ]);
 
   // One query covers the title, the pitch, the maker and the topics — the
@@ -41,10 +46,15 @@ export default async function SearchPage({
   const matches = projects
     .filter(
       (p) =>
-        p.title.toLowerCase().includes(query) ||
-        p.summary.toLowerCase().includes(query) ||
-        p.by.toLowerCase().includes(query) ||
-        p.tags.some((t) => t.includes(query)),
+        (!sp.open || p.openToCollaboration) &&
+        (!skill ||
+          (p.openToCollaboration &&
+            p.requestedSkills.some((s) => s.toLowerCase().includes(skill)))) &&
+        (!query ||
+          p.title.toLowerCase().includes(query) ||
+          p.summary.toLowerCase().includes(query) ||
+          p.by.toLowerCase().includes(query) ||
+          p.tags.some((t) => t.includes(query))),
     )
     .sort((a, b) => b.signalScore - a.signalScore);
 
@@ -66,6 +76,32 @@ export default async function SearchPage({
             Projects and the people who built them. Titles, summaries, makers
             and topics all match.
           </p>
+          <form className="mt-5 flex flex-wrap gap-2" action="/search">
+            <input
+              name="q"
+              defaultValue={sp.q}
+              placeholder="Search projects or people"
+              className="rounded-full border border-border bg-background px-4 py-2 text-sm"
+            />
+            <input
+              name="skill"
+              defaultValue={sp.skill}
+              placeholder="Needed skill"
+              className="rounded-full border border-border bg-background px-4 py-2 text-sm"
+            />
+            <label className="flex items-center gap-2 text-sm text-muted">
+              <input
+                type="checkbox"
+                name="open"
+                value="1"
+                defaultChecked={sp.open === "1"}
+              />
+              Open to collaborators
+            </label>
+            <button className="rounded-full bg-blue px-4 py-2 text-sm text-white">
+              Search
+            </button>
+          </form>
         </section>
 
         {people.length > 0 && (
@@ -94,7 +130,8 @@ export default async function SearchPage({
                       {person.name}
                     </span>
                     <span className="block truncate font-mono text-[10px] uppercase tracking-wider text-muted">
-                      {person.department ?? "Unfiled"} · {person.projects} project
+                      {person.department ?? "Unfiled"} · {person.projects}{" "}
+                      project
                       {person.projects === 1 ? "" : "s"}
                     </span>
                   </span>

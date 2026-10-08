@@ -1,0 +1,1 @@
+ALTER TABLE "abuse_flag" ADD COLUMN "abusive" boolean DEFAULT false NOT NULL;

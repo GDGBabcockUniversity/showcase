@@ -1,5 +1,5 @@
-import { endOfMonth, format, startOfMonth } from "date-fns";
-import { and, eq, gte, inArray, lt, sql } from "drizzle-orm";
+import { endOfMonth, format, startOfMonth, subMonths } from "date-fns";
+import { and, eq, gte, inArray, lt, sql, type SQLWrapper } from "drizzle-orm";
 import { db } from "@/db";
 import { interaction, project, signalScore } from "@/db/schema";
 
@@ -14,6 +14,16 @@ export const ENGAGEMENT_WEIGHTS = {
 // "what's a strong result" benchmark, so normalization falls back to the
 // typical (median) project instead of the 90th percentile.
 const MIN_COHORT_FOR_P90 = 10;
+export const SIGNAL_EXPOSURE_DAYS = 7;
+
+export function projectExposureEnd(publishedAt: Date, now: Date): Date {
+  return new Date(
+    Math.min(
+      now.getTime(),
+      publishedAt.getTime() + SIGNAL_EXPOSURE_DAYS * 24 * 60 * 60 * 1000,
+    ),
+  );
+}
 
 export function cohortMonthOf(date: Date): string {
   return format(date, "yyyy-MM");
@@ -25,6 +35,33 @@ export function cohortBounds(cohortMonth: string): { start: Date; end: Date } {
   return { start, end };
 }
 
+function excludeConfirmedAbuse(
+  interactionId: SQLWrapper,
+  projectId: SQLWrapper,
+  createdAt: SQLWrapper,
+) {
+  return sql`NOT EXISTS (
+    SELECT 1 FROM interaction_log il
+    INNER JOIN abuse_flag af ON af.project_id = ${projectId}
+      AND af.ip = il.ip
+      AND af.day = to_char(${createdAt}, 'YYYY-MM-DD')
+    WHERE il.interaction_id = ${interactionId}
+      AND af.reviewed = true AND af.abusive = true
+  )`;
+}
+
+function excludeProjectInsiders(
+  userId: SQLWrapper,
+  projectId: SQLWrapper,
+  ownerId: SQLWrapper,
+) {
+  return sql`${userId} IS DISTINCT FROM ${ownerId}
+    AND NOT EXISTS (
+      SELECT 1 FROM project_contributor pc
+      WHERE pc.project_id = ${projectId} AND pc.user_id = ${userId}
+    )`;
+}
+
 // Nearest-rank percentile — simple and defensible for v1 over interpolation.
 export function percentile(sortedAsc: number[], p: number): number {
   if (sortedAsc.length === 0) return 0;
@@ -32,18 +69,16 @@ export function percentile(sortedAsc: number[], p: number): number {
   return sortedAsc[Math.min(Math.max(rank, 0), sortedAsc.length - 1)];
 }
 
-// Normalizes a metric's raw counts against the cohort's p90 (>=10 published
-// projects that month) or median otherwise, capped at 1.0. When the
-// benchmark itself is 0 (the typical project got none of this metric), a
-// project with an actual nonzero count still gets full credit rather than
-// being divided by zero and erased — dividing by zero, not the absence of
-// a benchmark, is the only case that should force everyone to 0.
+// Smooth diminishing returns against the cohort's p90 (>=10 projects) or
+// median otherwise. Every positive value gets credit; no count plateaus.
 export function normalizeMetric(values: number[]): number[] {
   const sorted = [...values].sort((a, b) => a - b);
   const benchmark =
-    values.length >= MIN_COHORT_FOR_P90 ? percentile(sorted, 0.9) : percentile(sorted, 0.5);
-  if (benchmark <= 0) return values.map((v) => (v > 0 ? 1 : 0));
-  return values.map((v) => Math.min(1, v / benchmark));
+    values.length >= MIN_COHORT_FOR_P90
+      ? percentile(sorted, 0.9)
+      : percentile(sorted, 0.5);
+  const scale = Math.max(1, benchmark);
+  return values.map((v) => (v <= 0 ? 0 : v / (v + scale)));
 }
 
 export type CohortRawCounts = {
@@ -58,17 +93,29 @@ export type CohortRawCounts = {
 // excluded before the distinct — shared by the nightly batch job and the
 // top-3 query so "only your first comment counts" means the same thing in
 // both places.
-export async function firstCommentCounts(projectIds: string[]): Promise<Map<string, number>> {
+export async function firstCommentCounts(
+  projectIds: string[],
+  now = new Date(),
+): Promise<Map<string, number>> {
   if (projectIds.length === 0) return new Map();
   const result = await db.execute<{ project_id: string; n: string }>(sql`
     SELECT project_id, count(*) AS n
     FROM (
       SELECT DISTINCT ON (i.project_id, i.user_id) i.project_id, i.user_id
       FROM ${interaction} i
+      INNER JOIN ${project} p ON p.id = i.project_id
       LEFT JOIN hidden_comment h ON h.interaction_id = i.id
       WHERE i.type = 'comment'
+        AND i.parent_id IS NULL
         AND h.interaction_id IS NULL
-        AND i.project_id IN (${sql.join(projectIds.map((id) => sql`${id}`), sql`, `)})
+        AND ${excludeProjectInsiders(sql`i.user_id`, sql`i.project_id`, sql`p.user_id`)}
+        AND i.created_at >= p.published_at
+        AND i.created_at < LEAST(${now}, p.published_at + ${SIGNAL_EXPOSURE_DAYS} * interval '1 day')
+        AND ${excludeConfirmedAbuse(sql`i.id`, sql`i.project_id`, sql`i.created_at`)}
+        AND i.project_id IN (${sql.join(
+          projectIds.map((id) => sql`${id}`),
+          sql`, `,
+        )})
       ORDER BY i.project_id, i.user_id, i.created_at ASC
     ) first_comments
     GROUP BY project_id
@@ -76,23 +123,28 @@ export async function firstCommentCounts(projectIds: string[]): Promise<Map<stri
   return new Map(result.rows.map((r) => [r.project_id, Number(r.n)]));
 }
 
-// Raw view/click/like counts for every PUBLISHED project whose publishedAt
-// falls in the given cohort month, counted over [publishedAt, cohort end) —
-// the spec's "interaction window per project."
-export async function cohortRawCounts(cohortMonth: string): Promise<CohortRawCounts[]> {
+// Raw counts for each published project in a month, limited to its first
+// seven days after publication.
+export async function cohortRawCounts(
+  cohortMonth: string,
+  now = new Date(),
+): Promise<CohortRawCounts[]> {
   const { start, end } = cohortBounds(cohortMonth);
 
   const projects = await db
     .select({ id: project.id, publishedAt: project.publishedAt })
     .from(project)
-    .where(and(eq(project.status, "PUBLISHED"), gte(project.publishedAt, start), lt(project.publishedAt, end)));
+    .where(
+      and(
+        eq(project.status, "PUBLISHED"),
+        gte(project.publishedAt, start),
+        lt(project.publishedAt, end),
+      ),
+    );
 
   if (projects.length === 0) return [];
 
-  // Joined back to `project` rather than filtered by a single static bound,
-  // since the window's lower edge (published_at) differs per project — "from
-  // publication through the end of the cohort month," not just "sometime in
-  // the cohort month."
+  // Each project's exposure end depends on its publication timestamp.
   const counts = await db
     .select({
       projectId: interaction.projectId,
@@ -103,16 +155,33 @@ export async function cohortRawCounts(cohortMonth: string): Promise<CohortRawCou
     .innerJoin(project, eq(project.id, interaction.projectId))
     .where(
       and(
-        inArray(interaction.projectId, projects.map((p) => p.id)),
+        inArray(
+          interaction.projectId,
+          projects.map((p) => p.id),
+        ),
         inArray(interaction.type, ["view", "click", "like"]),
         gte(interaction.createdAt, project.publishedAt),
-        lt(interaction.createdAt, end),
+        excludeProjectInsiders(
+          interaction.userId,
+          interaction.projectId,
+          project.userId,
+        ),
+        sql`${interaction.createdAt} < LEAST(${now}, ${project.publishedAt} + ${SIGNAL_EXPOSURE_DAYS} * interval '1 day')`,
+        excludeConfirmedAbuse(
+          interaction.id,
+          interaction.projectId,
+          interaction.createdAt,
+        ),
       ),
     )
     .groupBy(interaction.projectId, interaction.type);
 
-  const byProject = new Map<string, { views: number; clicks: number; likes: number }>();
-  for (const p of projects) byProject.set(p.id, { views: 0, clicks: 0, likes: 0 });
+  const byProject = new Map<
+    string,
+    { views: number; clicks: number; likes: number }
+  >();
+  for (const p of projects)
+    byProject.set(p.id, { views: 0, clicks: 0, likes: 0 });
   for (const c of counts) {
     const row = byProject.get(c.projectId);
     if (!row) continue;
@@ -121,7 +190,10 @@ export async function cohortRawCounts(cohortMonth: string): Promise<CohortRawCou
     if (c.type === "like") row.likes = Number(c.n);
   }
 
-  const comments = await firstCommentCounts(projects.map((p) => p.id));
+  const comments = await firstCommentCounts(
+    projects.map((p) => p.id),
+    now,
+  );
 
   return projects.map((p) => ({
     projectId: p.id,
@@ -130,12 +202,19 @@ export async function cohortRawCounts(cohortMonth: string): Promise<CohortRawCou
   }));
 }
 
-export type ComputedScore = { projectId: string; cohortMonth: string; score: number };
+export type ComputedScore = {
+  projectId: string;
+  cohortMonth: string;
+  score: number;
+};
 
 // Percentile-normalize each metric across the cohort, weight, and sum — the
 // core of the nightly batch job. Pure computation, no writes, so it's
 // testable without a database.
-export function computeScores(cohortMonth: string, raw: CohortRawCounts[]): ComputedScore[] {
+export function computeScores(
+  cohortMonth: string,
+  raw: CohortRawCounts[],
+): ComputedScore[] {
   const views = normalizeMetric(raw.map((r) => r.views));
   const clicks = normalizeMetric(raw.map((r) => r.clicks));
   const likes = normalizeMetric(raw.map((r) => r.likes));
@@ -152,24 +231,54 @@ export function computeScores(cohortMonth: string, raw: CohortRawCounts[]): Comp
   }));
 }
 
-// The nightly entry point: compute the current cohort month's scores and
-// upsert them. Only ever touches the current month's rows — once a cohort
-// ends, its projects' signal_score rows simply stop being updated, a frozen
-// snapshot rather than a live recompute across all history.
-export async function runNightlySignalScoring(now = new Date()): Promise<ComputedScore[]> {
-  const cohortMonth = cohortMonthOf(now);
-  const raw = await cohortRawCounts(cohortMonth);
+export async function recomputeCohortSignalScores(
+  cohortMonth: string,
+  now = new Date(),
+): Promise<ComputedScore[]> {
+  const raw = await cohortRawCounts(cohortMonth, now);
   const scores = computeScores(cohortMonth, raw);
 
-  for (const s of scores) {
+  for (const score of scores) {
     await db
       .insert(signalScore)
-      .values({ projectId: s.projectId, cohortMonth: s.cohortMonth, signalScore: s.score, computedAt: now })
+      .values({
+        projectId: score.projectId,
+        cohortMonth: score.cohortMonth,
+        signalScore: score.score,
+        computedAt: now,
+      })
       .onConflictDoUpdate({
         target: signalScore.projectId,
-        set: { cohortMonth: s.cohortMonth, signalScore: s.score, computedAt: now },
+        set: {
+          cohortMonth: score.cohortMonth,
+          signalScore: score.score,
+          computedAt: now,
+        },
       });
   }
 
   return scores;
+}
+
+// Recompute this month, and the previous cohort during its final exposure
+// week. That gives projects published at month end the same seven days.
+export async function runNightlySignalScoring(
+  now = new Date(),
+): Promise<ComputedScore[]> {
+  const cohortMonth = cohortMonthOf(now);
+  const currentStart = cohortBounds(cohortMonth).start;
+  const months = [cohortMonth];
+  if (
+    now.getTime() <
+    currentStart.getTime() + (SIGNAL_EXPOSURE_DAYS + 1) * 24 * 60 * 60 * 1000
+  ) {
+    months.push(cohortMonthOf(subMonths(currentStart, 1)));
+  }
+
+  const allScores: ComputedScore[] = [];
+  for (const month of months) {
+    const scores = await recomputeCohortSignalScores(month, now);
+    allScores.push(...scores);
+  }
+  return allScores.filter((s) => s.cohortMonth === cohortMonth);
 }

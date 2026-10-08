@@ -27,6 +27,14 @@ import { TYPE_LABEL } from "@/lib/departments";
 import { TAG_LABEL, type Tag } from "@/lib/tags";
 import { coverGradient } from "@/lib/cover";
 import { formatDistanceToNow } from "date-fns";
+import { eq, and } from "drizzle-orm";
+import { db } from "@/db";
+import { follow } from "@/db/schema";
+import {
+  ShareLink,
+  FollowButton,
+  CollaborationForm,
+} from "@/components/community-controls";
 
 export async function generateMetadata({
   params,
@@ -44,7 +52,12 @@ export async function generateMetadata({
       ? { title, description: project.summary, images: [project.cover] }
       : undefined,
     twitter: project.cover
-      ? { card: "summary_large_image", title, description: project.summary, images: [project.cover] }
+      ? {
+          card: "summary_large_image",
+          title,
+          description: project.summary,
+          images: [project.cover],
+        }
       : undefined,
   };
 }
@@ -67,34 +80,59 @@ export default async function ProjectPage({
   const ip = await currentClientIp();
   after(() => recordView(id, actor, ip));
 
-  const [allProjects, likedIds, savedIds, comments, makers] = await Promise.all([
-    getAllProjects(),
-    session ? getLikedProjectIds(session.user.id) : Promise.resolve(new Set<string>()),
-    session ? getBookmarkedProjectIds(session.user.id) : Promise.resolve(new Set<string>()),
-    getCommentsForProject(id),
-    getProjectMakers(id),
-  ]);
+  const [allProjects, likedIds, savedIds, comments, makers] = await Promise.all(
+    [
+      getAllProjects(),
+      session
+        ? getLikedProjectIds(session.user.id)
+        : Promise.resolve(new Set<string>()),
+      session
+        ? getBookmarkedProjectIds(session.user.id)
+        : Promise.resolve(new Set<string>()),
+      getCommentsForProject(id),
+      getProjectMakers(id),
+    ],
+  );
   const isOwner = session?.user.id === p.ownerId;
+  const [projectFollow] =
+    session && !isOwner
+      ? await db
+          .select({ id: follow.id })
+          .from(follow)
+          .where(
+            and(eq(follow.userId, session.user.id), eq(follow.projectId, p.id)),
+          )
+      : [];
   const ranked = [...allProjects].sort((a, b) => b.signalScore - a.signalScore);
   const rank = ranked.findIndex((x) => x.id === p.id) + 1;
   const total = ranked.length;
 
   const related = [
-    ...allProjects.filter((i) => i.id !== p.id && i.department === p.department),
-    ...allProjects.filter((i) => i.id !== p.id && i.department !== p.department),
+    ...allProjects.filter(
+      (i) => i.id !== p.id && i.department === p.department,
+    ),
+    ...allProjects.filter(
+      (i) => i.id !== p.id && i.department !== p.department,
+    ),
   ].slice(0, 4);
 
   const slides = p.media;
+  const topComments = comments.filter((comment) => !comment.parentId);
+  const repliesByComment = new Map<string, typeof comments>();
+  for (const comment of comments) {
+    if (!comment.parentId) continue;
+    const replies = repliesByComment.get(comment.parentId) ?? [];
+    replies.push(comment);
+    repliesByComment.set(comment.parentId, replies);
+  }
 
   return (
     <>
       <Nav />
       <main className="mx-auto w-full max-w-6xl px-5 py-10 sm:py-14">
-
         {/* Header row */}
         <header className="mt-8 grid gap-8 border-b border-border pb-8 sm:grid-cols-[1fr_auto] sm:items-start">
           <div className="min-w-0">
-
             <div className="mt-3 flex items-center gap-4">
               {p.cover ? (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -147,6 +185,10 @@ export default async function ProjectPage({
           </div>
 
           <div className="flex flex-col items-start gap-3 sm:items-end">
+            <ShareLink url={`/project/${p.id}`} title="project" />
+            {session && !isOwner && (
+              <FollowButton projectId={p.id} following={!!projectFollow} />
+            )}
             <UpvoteButton
               key={`${p.id}-${likedIds.has(p.id)}-${p.likes}`}
               id={p.id}
@@ -194,15 +236,36 @@ export default async function ProjectPage({
                 {p.summary}
               </p>
               <p className="mt-4 max-w-2xl break-words text-sm leading-relaxed text-muted">
-                Filed as a {TYPE_LABEL[p.type].toLowerCase()} project by a
-                maker in {p.department.toLowerCase()}. Every submission is
-                read by a reviewer before it lands on the board, so being here
-                means someone signed off on what {p.by.split(" ")[0]} shipped.
+                Filed as a {TYPE_LABEL[p.type].toLowerCase()} project by a maker
+                in {p.department.toLowerCase()}. Every submission is read by a
+                reviewer before it lands on the board, so being here means
+                someone signed off on what {p.by.split(" ")[0]} shipped.
               </p>
             </section>
 
+            {p.openToCollaboration && (
+              <section className="mt-10 rounded-2xl border border-green/30 bg-green/5 p-5">
+                <p className="eyebrow text-green">Looking for collaborators</p>
+                {p.requestedSkills.length > 0 && (
+                  <p className="mt-2 text-sm text-muted">
+                    Skills: {p.requestedSkills.join(", ")}
+                  </p>
+                )}
+                {session && !isOwner ? (
+                  <CollaborationForm projectId={p.id} />
+                ) : !session ? (
+                  <p className="mt-2 text-sm text-muted">
+                    Sign in to contact the maker.
+                  </p>
+                ) : null}
+              </section>
+            )}
+
             {/* Comments */}
-            <section id="comments" className="mt-12 border-t border-border pt-10">
+            <section
+              id="comments"
+              className="mt-12 border-t border-border pt-10"
+            >
               <div className="flex items-baseline justify-between gap-6">
                 <div>
                   <p className="eyebrow">Comments</p>
@@ -211,7 +274,7 @@ export default async function ProjectPage({
                   </h2>
                 </div>
                 <span className="font-display text-3xl font-semibold tabular-nums">
-                  {comments.length}
+                  {topComments.length}
                 </span>
               </div>
 
@@ -226,12 +289,18 @@ export default async function ProjectPage({
                 </p>
               )}
 
-              {comments.length > 0 ? (
+              {topComments.length > 0 ? (
                 <ol className="mt-6 space-y-5">
-                  {comments.map((c) => (
-                    <li key={c.id} className="border-b border-border pb-5 last:border-0">
+                  {topComments.map((c) => (
+                    <li
+                      key={c.id}
+                      className="border-b border-border pb-5 last:border-0"
+                    >
                       <div className="flex items-start gap-3">
-                        <Avatar aria-hidden className="mt-0.5 border border-border">
+                        <Avatar
+                          aria-hidden
+                          className="mt-0.5 border border-border"
+                        >
                           <AvatarImage src={c.image ?? undefined} alt="" />
                           <AvatarFallback
                             className="font-display text-xs font-semibold text-white"
@@ -252,10 +321,46 @@ export default async function ProjectPage({
                               {c.by}
                             </Link>
                             <p className="font-mono text-[10px] tracking-wider text-muted">
-                              {formatDistanceToNow(c.createdAt, { addSuffix: true })}
+                              {formatDistanceToNow(c.createdAt, {
+                                addSuffix: true,
+                              })}
                             </p>
                           </div>
-                          <p className="mt-1.5 break-words text-sm leading-relaxed text-muted">{c.body}</p>
+                          <p className="mt-1.5 break-words text-sm leading-relaxed text-muted">
+                            {c.body}
+                          </p>
+                          {(repliesByComment.get(c.id)?.length ?? 0) > 0 && (
+                            <ol className="mt-4 space-y-4 border-l border-border pl-4">
+                              {repliesByComment.get(c.id)?.map((reply) => (
+                                <li key={reply.id}>
+                                  <div className="flex items-baseline justify-between gap-3">
+                                    <Link
+                                      href={`/u/${reply.username ?? reply.userId}`}
+                                      className="text-xs font-medium hover:text-blue"
+                                    >
+                                      {reply.by}
+                                    </Link>
+                                    <span className="font-mono text-[10px] text-muted">
+                                      {formatDistanceToNow(reply.createdAt, {
+                                        addSuffix: true,
+                                      })}
+                                    </span>
+                                  </div>
+                                  <p className="mt-1 break-words text-sm leading-relaxed text-muted">
+                                    {reply.body}
+                                  </p>
+                                </li>
+                              ))}
+                            </ol>
+                          )}
+                          {session && (
+                            <details className="mt-3">
+                              <summary className="w-fit cursor-pointer text-xs text-blue hover:underline">
+                                Reply
+                              </summary>
+                              <CommentForm projectId={p.id} parentId={c.id} />
+                            </details>
+                          )}
                         </div>
                       </div>
                     </li>
@@ -269,7 +374,10 @@ export default async function ProjectPage({
             </section>
 
             {/* Related */}
-            <section id="related" className="mt-12 border-t border-border pt-10">
+            <section
+              id="related"
+              className="mt-12 border-t border-border pt-10"
+            >
               <div className="flex items-baseline justify-between gap-6">
                 <div>
                   <p className="eyebrow">Related on the board</p>
@@ -277,7 +385,10 @@ export default async function ProjectPage({
                     Next to look at
                   </h2>
                 </div>
-                <Link href="/" className="font-mono text-[11px] uppercase tracking-wider text-blue hover:underline">
+                <Link
+                  href="/"
+                  className="font-mono text-[11px] uppercase tracking-wider text-blue hover:underline"
+                >
                   All projects →
                 </Link>
               </div>
@@ -348,7 +459,9 @@ export default async function ProjectPage({
                     <dt className="font-mono text-[10px] uppercase tracking-wider text-muted">
                       {row.label}
                     </dt>
-                    <dd className="min-w-0 break-words text-right text-sm font-medium">{row.value}</dd>
+                    <dd className="min-w-0 break-words text-right text-sm font-medium">
+                      {row.value}
+                    </dd>
                   </div>
                 ))}
               </div>

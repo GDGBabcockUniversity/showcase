@@ -1,7 +1,12 @@
 import { randomUUID } from "node:crypto";
-import { and, eq, gte, inArray } from "drizzle-orm";
+import { and, eq, gte } from "drizzle-orm";
 import { db } from "@/db";
-import { interaction, interactionLog, project, projectContributor, session } from "@/db/schema";
+import {
+  interaction,
+  interactionLog,
+  project,
+  projectContributor,
+} from "@/db/schema";
 import type { Actor } from "@/lib/actor";
 import type { InteractionType } from "@/lib/interaction-types";
 
@@ -18,9 +23,10 @@ export async function recordInteraction(opts: {
   type: InteractionType;
   actor: Actor;
   body?: string;
+  parentId?: string | null;
   ip?: string | null;
 }): Promise<RecordResult> {
-  const { projectId, type, actor, body, ip } = opts;
+  const { projectId, type, actor, body, parentId, ip } = opts;
 
   // Rule 1 — like/comment require a signed-in user. requireSession() in
   // src/app/actions.ts is the primary UX gate; this is the hard backstop.
@@ -34,29 +40,23 @@ export async function recordInteraction(opts: {
     .where(eq(project.id, projectId));
   if (!proj) return { ok: false, reason: "not-found" };
 
-  // Rule 2 — self-boost exclusion: the submitter and any tagged contributor
-  // are excluded from every interaction type, not just like/comment.
-  // Disabled for testing — re-enable before shipping.
-  // if (actor.userId) {
-  //   if (actor.userId === proj.userId) return { ok: false, reason: "self" };
-  //   const [contrib] = await db
-  //     .select({ id: projectContributor.id })
-  //     .from(projectContributor)
-  //     .where(and(eq(projectContributor.projectId, projectId), eq(projectContributor.userId, actor.userId)));
-  //   if (contrib) return { ok: false, reason: "self" };
-  // } else if (ip && ip !== "unknown") {
-  //   const contributors = await db
-  //     .select({ userId: projectContributor.userId })
-  //     .from(projectContributor)
-  //     .where(eq(projectContributor.projectId, projectId));
-  //   const insiderIds = [proj.userId, ...contributors.map((c) => c.userId)];
-  //   const [match] = await db
-  //     .select({ id: session.id })
-  //     .from(session)
-  //     .where(and(inArray(session.userId, insiderIds), eq(session.ipAddress, ip)))
-  //     .limit(1);
-  //   if (match) return { ok: false, reason: "self" };
-  // }
+  // Exclude signed-in owners and contributors from every signal-driving
+  // interaction. IP matching is deliberately avoided because campus NATs
+  // can include many unrelated users.
+  if (actor.userId) {
+    if (actor.userId === proj.userId) return { ok: false, reason: "self" };
+    const [contributor] = await db
+      .select({ id: projectContributor.id })
+      .from(projectContributor)
+      .where(
+        and(
+          eq(projectContributor.projectId, projectId),
+          eq(projectContributor.userId, actor.userId),
+        ),
+      )
+      .limit(1);
+    if (contributor) return { ok: false, reason: "self" };
+  }
 
   // Rule 4 — like toggling is handled by the caller (select-then-delete vs
   // insert); by the time we get here for a like it's always an insert, and
@@ -88,6 +88,7 @@ export async function recordInteraction(opts: {
   await db.insert(interaction).values({
     id,
     projectId,
+    parentId: parentId ?? null,
     userId: actor.userId,
     fingerprint: actor.key,
     type,
@@ -95,7 +96,9 @@ export async function recordInteraction(opts: {
   });
 
   if (ip) {
-    await db.insert(interactionLog).values({ id: randomUUID(), interactionId: id, projectId, ip });
+    await db
+      .insert(interactionLog)
+      .values({ id: randomUUID(), interactionId: id, projectId, ip });
   }
 
   return { ok: true };

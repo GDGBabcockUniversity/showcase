@@ -5,7 +5,13 @@ import { Nav } from "@/components/nav";
 import { Footer } from "@/components/footer";
 import { Dots } from "@/components/dots";
 import { db } from "@/db";
-import { project, user } from "@/db/schema";
+import {
+  collaborationRequest,
+  collaborationRequestReport,
+  project,
+  user,
+} from "@/db/schema";
+import { dismissCollaborationRequestReport } from "@/app/community-actions";
 import { requireRole } from "@/lib/require-role";
 import { STATUS_LABEL, type ProjectStatus } from "@/lib/project-status";
 import { getTopThreeProjects } from "@/lib/projects";
@@ -31,7 +37,26 @@ async function getQueue() {
 
 export default async function ReviewPage() {
   await requireRole("REVIEWER");
-  const [queue, topThree] = await Promise.all([getQueue(), getTopThreeProjects()]);
+  const [queue, topThree, reports] = await Promise.all([
+    getQueue(),
+    getTopThreeProjects(),
+    db
+      .select({
+        requestId: collaborationRequest.id,
+        projectId: project.id,
+        title: project.title,
+        message: collaborationRequest.message,
+        reporter: user.name,
+        reason: collaborationRequestReport.reason,
+      })
+      .from(collaborationRequestReport)
+      .innerJoin(
+        collaborationRequest,
+        eq(collaborationRequest.id, collaborationRequestReport.requestId),
+      )
+      .innerJoin(project, eq(project.id, collaborationRequest.projectId))
+      .innerJoin(user, eq(user.id, collaborationRequestReport.reportedBy)),
+  ]);
 
   return (
     <>
@@ -76,6 +101,47 @@ export default async function ReviewPage() {
 
         <section className="mt-12 border-t border-border pt-10">
           <h2 className="font-display text-2xl font-semibold tracking-tight">
+            Collaboration reports
+          </h2>
+          {reports.length === 0 ? (
+            <p className="mt-3 text-sm text-muted">No open reports.</p>
+          ) : (
+            <ul className="mt-4 divide-y divide-border border-y border-border">
+              {reports.map((report) => (
+                <li
+                  key={report.requestId}
+                  className="flex items-center justify-between gap-4 py-4"
+                >
+                  <span className="text-sm">
+                    <Link
+                      href={`/review/${report.projectId}`}
+                      className="text-blue hover:underline"
+                    >
+                      {report.title}
+                    </Link>
+                    <span className="block text-xs text-muted">
+                      Reported by {report.reporter}: {report.reason}
+                    </span>
+                    <span className="mt-1 block max-w-xl text-xs text-muted">
+                      “{report.message}”
+                    </span>
+                  </span>
+                  <form
+                    action={dismissCollaborationRequestReport.bind(
+                      null,
+                      report.requestId,
+                    )}
+                  >
+                    <button className="text-xs text-blue">Dismiss</button>
+                  </form>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        <section className="mt-12 border-t border-border pt-10">
+          <h2 className="font-display text-2xl font-semibold tracking-tight">
             This month&apos;s top 3
           </h2>
           <p className="mt-2 text-sm text-muted">
@@ -90,8 +156,12 @@ export default async function ReviewPage() {
                   className="flex items-center justify-between gap-4 py-4 hover:text-blue"
                 >
                   <span className="min-w-0">
-                    <span className="font-mono text-xs text-muted">№ {i + 1}</span>{" "}
-                    <span className="font-display text-lg font-semibold">{p.title}</span>
+                    <span className="font-mono text-xs text-muted">
+                      № {i + 1}
+                    </span>{" "}
+                    <span className="font-display text-lg font-semibold">
+                      {p.title}
+                    </span>
                   </span>
                   <span className="shrink-0 font-mono text-xs text-muted tabular-nums">
                     {p.signalScore.toFixed(2)} signal

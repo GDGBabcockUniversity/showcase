@@ -116,7 +116,7 @@ Use migrations (`npx drizzle-kit migrate`) for a shared or production database; 
 
 ## Signal scoring
 
-Scores are calculated for projects published in the current calendar month and are refreshed once overnight. Counts are normalized within each month’s project cohort, then weighted as follows:
+Scores are refreshed nightly. Each month is scored as its own cohort; the previous month is recalculated for one extra week so its latest projects can finish their seven-day exposure window. Counts are normalized within each month’s cohort, then weighted as follows:
 
 | Interaction | Weight |
 | --- | ---: |
@@ -125,7 +125,7 @@ Scores are calculated for projects published in the current calendar month and a
 | View | 20% |
 | Comment | 15% |
 
-Only the first eligible comment from a person counts toward that project’s score, and hidden comments do not count. Read the in-app explanation at `/signal-model` for the full model and its tradeoffs.
+Only the first eligible top-level comment from a person counts toward that project’s score, and hidden comments do not count. Every project gets a seven-day exposure window after publication. Signed-in owners and contributors cannot add signal to their own project; IP activity is excluded only after a reviewer confirms an abuse flag. Read `/signal-model` for the normalization details and tradeoffs.
 
 ## Deployment
 

@@ -1,18 +1,21 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { eq } from "drizzle-orm";
+import { and, count, eq, isNull } from "drizzle-orm";
 import { Nav } from "@/components/nav";
 import { Footer } from "@/components/footer";
 import { Dots } from "@/components/dots";
 import { db } from "@/db";
-import { abuseFlag, project, user } from "@/db/schema";
+import { abuseFlag, bookmark, interaction, project, user } from "@/db/schema";
 import { requireRole } from "@/lib/require-role";
 import { hourlyInteractionHistogram } from "@/lib/abuse";
 import { getProjectMakers } from "@/lib/projects";
 import type { ProjectStatus } from "@/lib/project-status";
 import { DemoteForm, StatusButtons } from "./review-actions";
+import { reviewAbuseFlag } from "@/app/review/actions";
 
-export const metadata: Metadata = { title: "Review project — GDG Babcock Showcase" };
+export const metadata: Metadata = {
+  title: "Review project — GDG Babcock Showcase",
+};
 
 async function getReviewTarget(id: string) {
   const [row] = await db
@@ -31,7 +34,11 @@ async function getReviewTarget(id: string) {
   return row;
 }
 
-export default async function ReviewProjectPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function ReviewProjectPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
   const session = await requireRole("REVIEWER");
   const { id } = await params;
 
@@ -43,6 +50,25 @@ export default async function ReviewProjectPage({ params }: { params: Promise<{ 
     hourlyInteractionHistogram(id),
     db.select().from(abuseFlag).where(eq(abuseFlag.projectId, id)),
   ]);
+  const metrics = await Promise.all(
+    ["view", "click", "like", "comment"].map(async (type) => {
+      const [row] = await db
+        .select({ total: count() })
+        .from(interaction)
+        .where(
+          and(
+            eq(interaction.projectId, id),
+            eq(interaction.type, type),
+            ...(type === "comment" ? [isNull(interaction.parentId)] : []),
+          ),
+        );
+      return Number(row?.total ?? 0);
+    }),
+  );
+  const [saved] = await db
+    .select({ total: count() })
+    .from(bookmark)
+    .where(eq(bookmark.projectId, id));
 
   const role = session.user.role;
   const maxHour = Math.max(1, ...histogram.map((h) => h.count));
@@ -56,8 +82,12 @@ export default async function ReviewProjectPage({ params }: { params: Promise<{ 
           Reviewing
         </p>
 
-        <h1 className="mt-8 font-display text-3xl font-bold tracking-tight">{target.title}</h1>
-        <p className="mt-2 text-sm leading-relaxed text-muted">{target.summary}</p>
+        <h1 className="mt-8 font-display text-3xl font-bold tracking-tight">
+          {target.title}
+        </h1>
+        <p className="mt-2 text-sm leading-relaxed text-muted">
+          {target.summary}
+        </p>
         <p className="mt-2 font-mono text-[11px] uppercase tracking-wider text-muted">
           by {target.by} · {target.department ?? "Unfiled"} ·{" "}
           {makers.filter((m) => !m.owner).length} contributor
@@ -67,7 +97,31 @@ export default async function ReviewProjectPage({ params }: { params: Promise<{ 
         <section className="mt-8 border-t border-border pt-8">
           <p className="eyebrow">Decision</p>
           <div className="mt-3">
-            <StatusButtons projectId={target.id} current={target.status as ProjectStatus} />
+            <StatusButtons
+              projectId={target.id}
+              current={target.status as ProjectStatus}
+            />
+          </div>
+        </section>
+
+        <section className="mt-8 border-t border-border pt-8">
+          <p className="eyebrow">Project analytics</p>
+          <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-5">
+            {["Views", "Demo clicks", "Likes", "Comments", "Saves"].map(
+              (label, i) => (
+                <div
+                  key={label}
+                  className="rounded-xl border border-border p-3"
+                >
+                  <p className="font-mono text-[10px] uppercase text-muted">
+                    {label}
+                  </p>
+                  <p className="mt-1 font-display text-2xl tabular-nums">
+                    {i === 4 ? Number(saved?.total ?? 0) : metrics[i]}
+                  </p>
+                </div>
+              ),
+            )}
           </div>
         </section>
 
@@ -102,20 +156,43 @@ export default async function ReviewProjectPage({ params }: { params: Promise<{ 
           ) : (
             <ul className="mt-3 divide-y divide-border border-y border-border">
               {flags.map((f) => (
-                <li key={f.id} className="flex items-center justify-between gap-4 py-3 text-sm">
+                <li
+                  key={f.id}
+                  className="flex items-center justify-between gap-4 py-3 text-sm"
+                >
                   <span className="font-mono text-xs text-muted">{f.ip}</span>
                   <span>{f.day}</span>
                   <span className="tabular-nums">{f.count} that day</span>
-                  <span className="font-mono text-[10px] uppercase tracking-wider text-muted">
-                    {f.reviewed ? "Reviewed" : "Open"}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-[10px] uppercase tracking-wider text-muted">
+                      {f.abusive
+                        ? "Confirmed"
+                        : f.reviewed
+                          ? "Dismissed"
+                          : "Open"}
+                    </span>
+                    {!f.reviewed && (
+                      <>
+                        <form action={reviewAbuseFlag.bind(null, f.id, true)}>
+                          <button className="text-xs text-red underline">
+                            Confirm abuse
+                          </button>
+                        </form>
+                        <form action={reviewAbuseFlag.bind(null, f.id, false)}>
+                          <button className="text-xs text-muted underline">
+                            Dismiss
+                          </button>
+                        </form>
+                      </>
+                    )}
+                  </div>
                 </li>
               ))}
             </ul>
           )}
           <p className="mt-2 text-xs text-muted">
-            Shared campus wifi or a NAT can legitimately produce a spike like
-            this — a flag is a prompt to look closer, not a verdict.
+            Shared campus wifi or a NAT can legitimately produce a spike. Only
+            confirmed flags exclude that IP&apos;s interactions from signal.
           </p>
         </section>
 
