@@ -384,7 +384,7 @@ export function SubmitForm({
           </span>
         </div>
         <nav>
-          <ul className="flex gap-1 overflow-x-auto lg:flex-col lg:overflow-visible">
+          <ul className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:flex lg:flex-col">
             {STEPS.map((s, i) => {
               const active = i === step;
               const err = stepHasError(i);
@@ -399,7 +399,7 @@ export function SubmitForm({
                     type="button"
                     onClick={() => go(i)}
                     aria-current={active ? "step" : undefined}
-                    className={`flex w-full items-center gap-3 whitespace-nowrap rounded-xl px-3 py-2.5 text-left text-sm transition-colors ${
+                    className={`flex h-full min-w-0 w-full items-center gap-2 rounded-xl px-2 py-2.5 text-left text-xs transition-colors sm:gap-3 sm:px-3 sm:text-sm ${
                       active ? "bg-surface text-fg" : "text-muted hover:bg-surface/60 hover:text-fg"
                     }`}
                   >
@@ -425,7 +425,7 @@ export function SubmitForm({
         }}
         className="min-w-0"
       >
-        <h1 className="font-display text-3xl font-bold tracking-tight">{current.heading}</h1>
+        <h1 className="font-display text-2xl font-bold tracking-tight sm:text-3xl">{current.heading}</h1>
         <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted">{current.blurb}</p>
 
         <div className="mt-8 grid gap-5 lg:grid-cols-2">
@@ -594,7 +594,7 @@ export function SubmitForm({
           </div>
         </div>
 
-        <div className="mt-8 flex items-center justify-between gap-4 border-t border-border pt-5">
+        <div className="mt-8 flex flex-col gap-4 border-t border-border pt-5 sm:flex-row sm:items-center sm:justify-between">
           {step > 0 ? (
             <button
               type="button"
@@ -609,19 +609,19 @@ export function SubmitForm({
             </p>
           )}
 
-          <div className="flex items-center gap-4">
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:gap-4">
             {/* Saves whatever's filled in and lands on the edit page, where the
                 draft can be finished and published later. */}
-            <Button type="submit" name="intent" value="draft" variant="quiet" size="none" disabled={pending}>
+            <Button type="submit" name="intent" value="draft" variant="quiet" size="none" disabled={pending} className="w-full sm:w-auto">
               Save draft
             </Button>
 
             {isLast ? (
-              <Button key="submit" type="submit" size="lg" disabled={pending}>
+              <Button key="submit" type="submit" size="lg" disabled={pending} className="w-full sm:w-auto">
                 {pending ? "Sending…" : "Submit for review"}
               </Button>
             ) : (
-              <Button key="next" type="button" size="lg" onClick={() => go(step + 1)}>
+              <Button key="next" type="button" size="lg" onClick={() => go(step + 1)} className="w-full sm:w-auto">
                 Next step: {STEPS[step + 1].label}
               </Button>
             )}

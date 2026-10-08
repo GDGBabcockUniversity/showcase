@@ -37,6 +37,7 @@ export function CommentForm({
         maxLength={500}
         rows={3}
         placeholder={parentId ? "Write a reply…" : "What stood out to you?"}
+        className="resize-none"
       />
       <Button
         type="submit"
