@@ -6,7 +6,7 @@ const nextConfig: NextConfig = {
     serverActions: { bodySizeLimit: "8mb" },
   },
   images: {
-    qualities: [100, 75]
+    qualities: [100, 75],
   }
 };
 

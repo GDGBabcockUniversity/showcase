@@ -29,10 +29,9 @@ import { coverGradient } from "@/lib/cover";
 import { formatDistanceToNow } from "date-fns";
 import { eq, and } from "drizzle-orm";
 import { db } from "@/db";
-import { collaborationRequest, follow } from "@/db/schema";
+import { collaborationRequest } from "@/db/schema";
 import {
   ShareLink,
-  FollowButton,
   CollaborationForm,
 } from "@/components/community-controls";
 
@@ -94,15 +93,6 @@ export default async function ProjectPage({
     ],
   );
   const isOwner = session?.user.id === p.ownerId;
-  const [projectFollow] =
-    session && !isOwner
-      ? await db
-          .select({ id: follow.id })
-          .from(follow)
-          .where(
-            and(eq(follow.userId, session.user.id), eq(follow.projectId, p.id)),
-          )
-      : [];
   const [myOpenRequest] =
     session && !isOwner
       ? await db
@@ -161,7 +151,7 @@ export default async function ProjectPage({
                   aria-hidden
                 />
               )}
-              <h1 className="min-w-0 break-words font-display text-[2.75rem] font-bold leading-[0.95] tracking-tight sm:text-6xl">
+              <h1 className="min-w-0 break-words font-display text-3xl font-bold leading-tight tracking-tight sm:text-6xl sm:leading-[0.95]">
                 {p.title}
               </h1>
             </div>
@@ -199,9 +189,6 @@ export default async function ProjectPage({
 
           <div className="flex flex-col items-start gap-3 sm:items-end">
             <ShareLink url={`/project/${p.id}`} title="project" />
-            {session && !isOwner && (
-              <FollowButton projectId={p.id} following={!!projectFollow} />
-            )}
             <UpvoteButton
               key={`${p.id}-${likedIds.has(p.id)}-${p.likes}`}
               id={p.id}
@@ -301,8 +288,8 @@ export default async function ProjectPage({
                       role="status"
                       className="mt-5 border-t border-green/20 pt-4 text-sm text-green"
                     >
-                      Your request is with the maker. You can follow this
-                      project to keep up with new work.
+                      Your request is with the maker. You can check back here
+                      for updates.
                     </p>
                   ) : (
                     <CollaborationForm projectId={p.id} />

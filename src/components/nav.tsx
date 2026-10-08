@@ -12,8 +12,6 @@ const LINKS = [
   { href: "/", label: "Home" },
   { href: "/this-month", label: "This Month" },
   { href: "/archive", label: "Archive" },
-  { href: "/following", label: "Following" },
-  { href: "/collections", label: "Collections" },
   { href: "/submit", label: "Submit" },
 ];
 

@@ -3,7 +3,6 @@
 import { useActionState, useState } from "react";
 import {
   requestCollaboration,
-  setFollowing,
   type CollaborationRequestState,
 } from "@/app/community-actions";
 
@@ -25,28 +24,6 @@ export function ShareLink({ url, title }: { url: string; title: string }) {
         {copied ? "Link copied" : `Share ${title}`}
       </button>
     </div>
-  );
-}
-
-export function FollowButton({
-  makerId,
-  projectId,
-  following,
-}: {
-  makerId?: string;
-  projectId?: string;
-  following: boolean;
-}) {
-  return (
-    <form action={setFollowing.bind(null, { makerId, projectId }, !following)}>
-      <button
-        type="submit"
-        aria-pressed={following}
-        className="min-h-10 rounded-full border border-border px-4 py-2 text-xs transition-colors hover:border-blue hover:text-blue"
-      >
-        {following ? "Following · unfollow" : "Follow project"}
-      </button>
-    </form>
   );
 }
 

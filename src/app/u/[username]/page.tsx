@@ -14,8 +14,7 @@ import {
   getLikedProjectIds,
   getPublicProjectsByUser,
 } from "@/lib/projects";
-import { follow } from "@/db/schema";
-import { FollowButton, ShareLink } from "@/components/community-controls";
+import { ShareLink } from "@/components/community-controls";
 
 async function getProfile(handle: string) {
   const rows = await db
@@ -84,19 +83,6 @@ export default async function ProfilePage({
       ? getBookmarkedProjectIds(session.user.id)
       : Promise.resolve(new Set<string>()),
   ]);
-  const [makerFollow] =
-    session && session.user.id !== profile.id
-      ? await db
-          .select({ id: follow.id })
-          .from(follow)
-          .where(
-            and(
-              eq(follow.userId, session.user.id),
-              eq(follow.makerId, profile.id),
-            ),
-          )
-      : [];
-
   const memberSince = profile.createdAt.toLocaleDateString("en-US", {
     month: "long",
     year: "numeric",
@@ -160,9 +146,6 @@ export default async function ProfilePage({
                 url={`/u/${profile.username ?? profile.id}`}
                 title="profile"
               />
-              {session && session.user.id !== profile.id && (
-                <FollowButton makerId={profile.id} following={!!makerFollow} />
-              )}
             </div>
           </div>
         </section>

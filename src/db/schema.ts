@@ -283,8 +283,8 @@ export const bookmark = pgTable(
   (t) => [uniqueIndex("bookmark_project_user_idx").on(t.projectId, t.userId)],
 );
 
-// A follow targets either a maker or a project. Muting keeps the relationship
-// but removes its activity from the follower's feed.
+// Retained for existing database rows; the follow feature is no longer exposed
+// by the application.
 export const follow = pgTable(
   "follow",
   {
@@ -346,6 +346,8 @@ export const collaborationRequestReport = pgTable(
   },
 );
 
+// Retained for existing database rows; collections are no longer exposed by
+// the application.
 export const showcaseCollection = pgTable("showcase_collection", {
   id: text("id").primaryKey(),
   slug: text("slug").notNull().unique(),

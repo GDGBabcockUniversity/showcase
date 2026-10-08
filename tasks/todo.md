@@ -46,63 +46,7 @@
 
 **Estimated scope:** Small to medium.
 
-## Phase 2: Return loop
-
-### Task 3: Follow makers and projects
-
-**Description:** Let signed-in students follow a maker or project and manage those follows from their account.
-
-**Acceptance criteria:**
-
-- [x] Follow/unfollow is protected by authorization and duplicate-safe database indexes.
-- [x] Users can see, mute, and remove follows from the following page.
-- [x] Public pages do not reveal private account data.
-
-**Verification:** Add focused authorization and uniqueness coverage; manually test follow/unfollow from two accounts.
-
-**Dependencies:** None.
-
-**Files likely touched:** schema/migration, server actions, profile/project pages, account UI, tests.
-
-**Estimated scope:** Medium.
-
-### Task 4: Followed activity feed and preferences
-
-**Description:** Show new published projects from followed makers and give users control over which activity they see.
-
-**Acceptance criteria:**
-
-- [x] Feed only includes published projects from followed makers/projects.
-- [x] Users can mute or remove follows.
-- [x] Feed is currently unpaginated, so it cannot duplicate or skip page boundaries.
-
-**Verification:** Add query coverage for visibility and ordering; manually publish a project from a followed maker.
-
-**Dependencies:** Task 3.
-
-**Files likely touched:** feed queries, new feed route, account preferences, tests.
-
-**Estimated scope:** Medium.
-
-### Task 5: Optional weekly digest
-
-**Description:** Send a weekly summary of new work from followed makers only after the in-app feed demonstrates demand.
-
-**Acceptance criteria:**
-
-- [ ] Digest is opt-in and frequency-controlled. **Deferred:** no email delivery provider is configured.
-- [ ] Every message includes an unsubscribe/preference link.
-- [ ] Delivery failures and duplicate sends are handled safely.
-
-**Verification:** Test rendering, preference enforcement, and duplicate-job behavior with a non-production sender.
-
-**Dependencies:** Tasks 3 and 4; approved email provider.
-
-**Files likely touched:** scheduled job, email templates, preferences, delivery logs, tests.
-
-**Estimated scope:** Medium.
-
-## Phase 3: Collaboration
+## Phase 2: Collaboration
 
 ### Task 6: Open-to-collaboration projects
 
@@ -140,23 +84,3 @@
 **Files likely touched:** request schema/actions, search queries, project UI, moderation UI, tests.
 
 **Estimated scope:** Large; split schema/actions from discovery UI during implementation.
-
-## Phase 4: Campus curation
-
-### Task 8: Curated showcase collections
-
-**Description:** Let GDG organizers publish a themed collection or demo-day lineup of projects.
-
-**Acceptance criteria:**
-
-- [x] Reviewers and admins can create collections and set their project order.
-- [x] Collections are shareable and readable without signing in.
-- [x] Selection is clearly labeled as curated rather than an automatic popularity ranking.
-
-**Verification:** Add organizer authorization coverage and manually test a public collection.
-
-**Dependencies:** None.
-
-**Files likely touched:** schema/migration, organizer actions, collection pages, tests.
-
-**Estimated scope:** Medium.
