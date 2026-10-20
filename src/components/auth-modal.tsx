@@ -16,6 +16,7 @@ import { Label } from "@/components/ui/label";
 import { DEPARTMENTS, LEVELS } from "@/lib/departments";
 import { USERNAME_MAX, USERNAME_MIN } from "@/lib/username";
 import { OPEN_AUTH_MODAL_EVENT } from "@/lib/require-auth";
+import { LuLoaderCircle } from "react-icons/lu";
 
 const inputClass =
   "w-full rounded-xl border border-border bg-bg px-3.5 py-2.5 text-sm text-fg outline-none transition-colors placeholder:text-muted";
@@ -81,28 +82,42 @@ export function AuthModal() {
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (pending) return;
     setError(null);
     setPending(true);
-    const { error } =
-      mode === "signin"
-        ? await signIn.email({ email, password })
-        : await signUp.email({ name, username, email, password, department, level });
-    setPending(false);
-    if (error) {
-      setError(error.message ?? "Something went wrong.");
-      return;
+    try {
+      const { error } =
+        mode === "signin"
+          ? await signIn.email({ email, password })
+          : await signUp.email({
+              name,
+              username,
+              email,
+              password,
+              department,
+              level,
+            });
+      if (error) {
+        setError(error.message ?? "Something went wrong.");
+        return;
+      }
+      setOpen(false);
+      reset();
+      if (redirectTo.current) router.push(redirectTo.current);
+      // Re-render server components so the new session is picked up.
+      router.refresh();
+    } catch {
+      setError("Unable to connect. Please try again.");
+    } finally {
+      setPending(false);
     }
-    setOpen(false);
-    reset();
-    if (redirectTo.current) router.push(redirectTo.current);
-    // Re-render server components so the new session is picked up.
-    router.refresh();
   }
 
   return (
     <Dialog
       open={open}
       onOpenChange={(next) => {
+        if (pending) return;
         setOpen(next);
         if (!next) reset();
       }}
@@ -117,8 +132,11 @@ export function AuthModal() {
           </DialogTitle>
         </DialogHeader>
 
-
-        <form onSubmit={onSubmit} className="mt-7 flex flex-col gap-4">
+        <form
+          onSubmit={onSubmit}
+          aria-busy={pending}
+          className="mt-7 flex flex-col gap-4"
+        >
           {mode === "signup" && (
             <>
               <div>
@@ -200,9 +218,32 @@ export function AuthModal() {
               className="mt-2"
             />
           </div>
-          {error && <p className={errClass}>{error}</p>}
-          <Button type="submit" size="lg" disabled={pending} className="mt-1 w-full">
-            {mode === "signin" ? "Sign in" : "Sign up"}
+          {error && (
+            <p role="alert" className={errClass}>
+              {error}
+            </p>
+          )}
+          <Button
+            type="submit"
+            size="lg"
+            disabled={pending}
+            className="mt-1 w-full"
+          >
+            {pending && (
+              <LuLoaderCircle
+                className="animate-spin motion-reduce:animate-none"
+                aria-hidden
+              />
+            )}
+            <span aria-live="polite">
+              {pending
+                ? mode === "signin"
+                  ? "Signing in…"
+                  : "Creating account…"
+                : mode === "signin"
+                  ? "Sign in"
+                  : "Sign up"}
+            </span>
           </Button>
         </form>
 
@@ -216,6 +257,7 @@ export function AuthModal() {
           type="button"
           variant="outline"
           size="lg"
+          disabled={pending}
           onClick={() =>
             signIn.social({
               provider: "google",
@@ -231,6 +273,7 @@ export function AuthModal() {
           type="button"
           variant="ghost"
           size="none"
+          disabled={pending}
           onClick={() => {
             setError(null);
             setMode(mode === "signin" ? "signup" : "signin");
