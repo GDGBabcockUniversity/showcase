@@ -1,6 +1,18 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState, type DragEvent } from "react";
+import {
+  useActionState,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type DragEvent,
+} from "react";
+import { useRouter } from "next/navigation";
+import {
+  parseSubmissionDraft,
+  type SubmissionDraft,
+} from "@/lib/submission-draft";
 import { toast } from "sonner";
 import { LuX } from "react-icons/lu";
 import { PROJECT_TYPES, TYPE_LABEL } from "@/lib/departments";
@@ -26,8 +38,19 @@ import {
 export type SubmitState = {
   ok: boolean;
   message?: string;
+  draftId?: string;
   errors?: Partial<
-    Record<"title" | "summary" | "collaborators" | "type" | "tags" | "url" | "cover" | "media", string>
+    Record<
+      | "title"
+      | "summary"
+      | "collaborators"
+      | "type"
+      | "tags"
+      | "url"
+      | "cover"
+      | "media",
+      string
+    >
   >;
   receipt?: {
     title: string;
@@ -55,6 +78,8 @@ export function FileDrop({
   accept = "image/png,image/jpeg,image/webp",
   hint,
   initial = [],
+  onChange,
+  onUploadingChange,
 }: {
   id: string;
   name: string;
@@ -65,6 +90,8 @@ export function FileDrop({
   // Already-uploaded images (editing an existing project). They post the same
   // hidden inputs as new ones, so removing one here removes it on save.
   initial?: string[];
+  onChange?: (urls: string[]) => void;
+  onUploadingChange?: (uploading: boolean) => void;
 }) {
   const [over, setOver] = useState(false);
   const [urls, setUrls] = useState<string[]>(initial);
@@ -76,10 +103,14 @@ export function FileDrop({
   const { startUpload, isUploading } = useUploadThing(endpoint, {
     onUploadProgress: setProgress,
     onClientUploadComplete: (res) => {
-      setUrls((prev) => [
-        ...prev,
-        ...res.map((r) => r.ufsUrl + (r.type.startsWith("video/") ? VIDEO_MARK : "")),
-      ]);
+      const next = [
+        ...(multiple ? urls : []),
+        ...res.map(
+          (r) => r.ufsUrl + (r.type.startsWith("video/") ? VIDEO_MARK : ""),
+        ),
+      ];
+      setUrls(next);
+      onChange?.(next);
       setError(null);
     },
     onUploadError: (e) => {
@@ -88,8 +119,14 @@ export function FileDrop({
     },
   });
 
+  useEffect(() => {
+    onUploadingChange?.(isUploading);
+  }, [isUploading, onUploadingChange]);
+
   function take(list: File[]) {
-    const images = list.filter((f) => accept.split(",").some((a) => f.type === a.trim()));
+    const images = list.filter((f) =>
+      accept.split(",").some((a) => f.type === a.trim()),
+    );
     if (images.length === 0) return;
     setError(null);
     setProgress(0);
@@ -147,6 +184,7 @@ export function FileDrop({
                     // The label would otherwise open the file picker.
                     e.preventDefault();
                     setUrls((prev) => prev.filter((x) => x !== u));
+                    onChange?.(urls.filter((x) => x !== u));
                   }}
                   className="absolute -right-1.5 -top-1.5 h-5 w-5 bg-bg text-muted hover:border-red hover:text-red"
                 >
@@ -227,7 +265,13 @@ function CharCount({ value, max }: { value: string; max: number }) {
   );
 }
 
-function StepIcon({ index, state }: { index: number; state: "done" | "active" | "todo" | "error" }) {
+function StepIcon({
+  index,
+  state,
+}: {
+  index: number;
+  state: "done" | "active" | "todo" | "error";
+}) {
   const tone =
     state === "error"
       ? "border-red text-red"
@@ -246,7 +290,15 @@ function StepIcon({ index, state }: { index: number; state: "done" | "active" | 
   );
 }
 
-function ChecklistRow({ label, ok, hint }: { label: string; ok: boolean; hint: string }) {
+function ChecklistRow({
+  label,
+  ok,
+  hint,
+}: {
+  label: string;
+  ok: boolean;
+  hint: string;
+}) {
   return (
     <li className="flex items-start gap-3 border-b border-border py-3 last:border-b-0">
       <span
@@ -267,40 +319,126 @@ function ChecklistRow({ label, ok, hint }: { label: string; ok: boolean; hint: s
   );
 }
 
-export function SubmitForm({
-  action,
-}: {
+type SubmitFormProps = {
+  userId: string;
   action: (prev: SubmitState, formData: FormData) => Promise<SubmitState>;
-}) {
-  const [state, formAction, pending] = useActionState(action, initial);
-  const formRef = useRef<HTMLFormElement>(null);
-  const [step, setStep] = useState(0);
+};
+
+const subscribeToHydration = () => () => {};
+
+export function SubmitForm(props: SubmitFormProps) {
+  const hydrated = useSyncExternalStore(
+    subscribeToHydration,
+    () => true,
+    () => false,
+  );
+  if (!hydrated)
+    return (
+      <p role="status" className="text-sm text-muted">
+        Restoring your draft…
+      </p>
+    );
+  return <SavedSubmitForm {...props} />;
+}
+
+function SavedSubmitForm({ action, userId }: SubmitFormProps) {
+  const router = useRouter();
+  const storageKey = `showcase:submission:v1:${userId}`;
+  const [saved] = useState(() => {
+    try {
+      return parseSubmissionDraft(localStorage.getItem(storageKey));
+    } catch {
+      return null;
+    }
+  });
+  const [submissionId] = useState(() => saved?.id ?? crypto.randomUUID());
+  const [state, formAction, pending] = useActionState(
+    async (prev: SubmitState, data: FormData) => {
+      try {
+        return await action(prev, data);
+      } catch {
+        return {
+          ok: false,
+          message:
+            "We couldn’t confirm your submission. Check your connection and try again. Your progress is still here, and retrying won’t create a duplicate.",
+        };
+      }
+    },
+    initial,
+  );
+  const [step, setStep] = useState(saved?.step ?? 0);
   // Controlled, because React clears uncontrolled fields once a form action
   // settles — a validation error would otherwise wipe everything typed so far.
-  const [title, setTitle] = useState("");
-  const [summary, setSummary] = useState("");
-  const [url, setUrl] = useState("");
-  const [type, setType] = useState("");
-  const [tags, setTags] = useState<string[]>([]);
-  // Recomputed on navigation rather than per keystroke — enough to drive the
-  // sidebar ticks and the checklist without re-rendering the form constantly.
-  const [filled, setFilled] = useState<Record<string, boolean>>({});
+  const [title, setTitle] = useState(saved?.title ?? "");
+  const [summary, setSummary] = useState(saved?.summary ?? "");
+  const [url, setUrl] = useState(saved?.url ?? "");
+  const [type, setType] = useState(saved?.type ?? "");
+  const [tags, setTags] = useState<string[]>(saved?.tags ?? []);
+  const [cover, setCover] = useState<string[]>(saved?.cover ?? []);
+  const [media, setMedia] = useState<string[]>(saved?.media ?? []);
+  const [collaborators, setCollaborators] = useState(
+    saved?.collaborators ?? [],
+  );
+  const [coverUploading, setCoverUploading] = useState(false);
+  const [mediaUploading, setMediaUploading] = useState(false);
+  const busy = pending || coverUploading || mediaUploading;
+  const saveNotice = useRef<HTMLParagraphElement>(null);
 
-  function readFilled() {
-    const fd = formRef.current ? new FormData(formRef.current) : null;
-    if (!fd) return {};
-    const next = {
-      title: title.trim().length >= TITLE_MIN,
-      summary: summary.trim().length >= SUMMARY_MIN,
-      type: !!type,
-      tags: tags.length > 0,
-      cover: !!String(fd.get("cover") ?? ""),
-      collaborators: fd.getAll("collaborators").length > 0,
-      media: fd.getAll("media").length > 0,
-    };
-    setFilled(next);
-    return next;
-  }
+  useEffect(() => {
+    try {
+      if (state.ok) {
+        localStorage.removeItem(storageKey);
+        if (state.draftId) router.push(`/project/${state.draftId}/edit`);
+        return;
+      }
+      const draft: SubmissionDraft = {
+        version: 1,
+        id: submissionId,
+        step,
+        title,
+        summary,
+        url,
+        type,
+        tags,
+        cover,
+        media,
+        collaborators,
+      };
+      localStorage.setItem(storageKey, JSON.stringify(draft));
+      if (saveNotice.current)
+        saveNotice.current.textContent =
+          "Progress saved automatically in this browser.";
+    } catch {
+      if (saveNotice.current)
+        saveNotice.current.textContent =
+          "Browser storage is unavailable. Use Save draft to keep your progress.";
+      if (state.ok && state.draftId)
+        router.push(`/project/${state.draftId}/edit`);
+    }
+  }, [
+    storageKey,
+    submissionId,
+    step,
+    title,
+    summary,
+    url,
+    type,
+    tags,
+    cover,
+    media,
+    collaborators,
+    state,
+    router,
+  ]);
+  const filled: Record<string, boolean> = {
+    title: title.trim().length >= TITLE_MIN,
+    summary: summary.trim().length >= SUMMARY_MIN,
+    type: !!type,
+    tags: tags.length > 0,
+    cover: cover.length > 0,
+    collaborators: collaborators.length > 0,
+    media: media.length > 0,
+  };
 
   useEffect(() => {
     if (state.message && !state.ok) toast.error(state.message);
@@ -317,7 +455,6 @@ export function SubmitForm({
   }
 
   function go(next: number) {
-    readFilled();
     setStep(next);
   }
 
@@ -369,7 +506,10 @@ export function SubmitForm({
         <div className="flex items-center gap-3 px-3 pb-4">
           <span
             className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg font-display text-sm font-semibold text-white"
-            style={{ background: "linear-gradient(135deg, var(--color-blue), var(--color-green))" }}
+            style={{
+              background:
+                "linear-gradient(135deg, var(--color-blue), var(--color-green))",
+            }}
             aria-hidden
           >
             {title.trim()[0]?.toUpperCase() ?? "?"}
@@ -415,8 +555,11 @@ export function SubmitForm({
 
       {/* Step panel */}
       <form
-        ref={formRef}
         action={formAction}
+        aria-busy={busy}
+        onSubmit={(e) => {
+          if (busy) e.preventDefault();
+        }}
         onKeyDown={(e) => {
           // Enter would otherwise submit from any step
           if (e.key === "Enter" && !isLast && (e.target as HTMLElement).tagName !== "TEXTAREA") {
@@ -425,8 +568,13 @@ export function SubmitForm({
         }}
         className="min-w-0"
       >
-        <h1 className="font-display text-2xl font-bold tracking-tight sm:text-3xl">{current.heading}</h1>
-        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted">{current.blurb}</p>
+        <input type="hidden" name="submissionId" value={submissionId} />
+        <h1 className="font-display text-2xl font-bold tracking-tight sm:text-3xl">
+          {current.heading}
+        </h1>
+        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted">
+          {current.blurb}
+        </p>
 
         <div className="mt-8 grid gap-5 lg:grid-cols-2">
           {/* Main info */}
@@ -445,7 +593,9 @@ export function SubmitForm({
               aria-invalid={!!state.errors?.title}
               className="mt-2"
             />
-            {state.errors?.title && <p className={errClass}>{state.errors.title}</p>}
+            {state.errors?.title && (
+              <p className={errClass}>{state.errors.title}</p>
+            )}
           </div>
 
           <div className={current.id === "main" ? "lg:col-span-2" : "hidden"}>
@@ -464,7 +614,9 @@ export function SubmitForm({
               aria-invalid={!!state.errors?.summary}
               className="mt-2"
             />
-            {state.errors?.summary && <p className={errClass}>{state.errors.summary}</p>}
+            {state.errors?.summary && (
+              <p className={errClass}>{state.errors.summary}</p>
+            )}
           </div>
 
           <div className={current.id === "main" ? "" : "hidden"}>
@@ -479,7 +631,9 @@ export function SubmitForm({
               aria-invalid={!!state.errors?.url}
               className="mt-2"
             />
-            {state.errors?.url && <p className={errClass}>{state.errors.url}</p>}
+            {state.errors?.url && (
+              <p className={errClass}>{state.errors.url}</p>
+            )}
           </div>
 
           <fieldset className={current.id === "main" ? "lg:col-span-2" : "hidden"}>
@@ -502,12 +656,17 @@ export function SubmitForm({
                 </label>
               ))}
             </div>
-            {state.errors?.type && <p className={errClass}>{state.errors.type}</p>}
+            {state.errors?.type && (
+              <p className={errClass}>{state.errors.type}</p>
+            )}
           </fieldset>
 
           <fieldset className={current.id === "main" ? "lg:col-span-2" : "hidden"}>
             <legend className={labelClass}>
-              Topics <span className="text-muted/70">(optional, up to {MAX_TAGS})</span>
+              Topics{" "}
+              <span className="text-muted/70">
+                (optional, up to {MAX_TAGS})
+              </span>
             </legend>
             <div className="mt-2 flex flex-wrap gap-2">
               {TAGS.map((t) => (
@@ -531,19 +690,32 @@ export function SubmitForm({
                 </label>
               ))}
             </div>
-            {state.errors?.tags && <p className={errClass}>{state.errors.tags}</p>}
+            {state.errors?.tags && (
+              <p className={errClass}>{state.errors.tags}</p>
+            )}
           </fieldset>
 
           {/* Images and media */}
           <div className={current.id === "media" ? "" : "hidden"}>
             <span className={labelClass}>Cover image</span>
-            <FileDrop id="cover" name="cover" endpoint="projectCover" hint="PNG / JPG / WEBP · ≤ 4 MB" />
-            {state.errors?.cover && <p className={errClass}>{state.errors.cover}</p>}
+            <FileDrop
+              id="cover"
+              name="cover"
+              endpoint="projectCover"
+              hint="PNG / JPG / WEBP · ≤ 4 MB"
+              initial={cover}
+              onChange={setCover}
+              onUploadingChange={setCoverUploading}
+            />
+            {state.errors?.cover && (
+              <p className={errClass}>{state.errors.cover}</p>
+            )}
           </div>
 
           <div className={current.id === "media" ? "" : "hidden"}>
             <span className={labelClass}>
-              More media <span className="text-muted/70">(images or video, optional)</span>
+              More media{" "}
+              <span className="text-muted/70">(images or video, optional)</span>
             </span>
             <FileDrop
               id="media"
@@ -552,8 +724,13 @@ export function SubmitForm({
               multiple
               accept={MEDIA_ACCEPT}
               hint="Images or clips · up to 4"
+              initial={media}
+              onChange={setMedia}
+              onUploadingChange={setMediaUploading}
             />
-            {state.errors?.media && <p className={errClass}>{state.errors.media}</p>}
+            {state.errors?.media && (
+              <p className={errClass}>{state.errors.media}</p>
+            )}
           </div>
 
           {/* Makers */}
@@ -565,6 +742,8 @@ export function SubmitForm({
               name="collaborators"
               max={MAX_COLLABORATORS}
               labelledBy="collaborators-label"
+              initial={collaborators}
+              onChange={setCollaborators}
             />
             {state.errors?.collaborators && (
               <p className={errClass}>{state.errors.collaborators}</p>
@@ -594,6 +773,19 @@ export function SubmitForm({
           </div>
         </div>
 
+        <p ref={saveNotice} role="status" className="mt-6 text-xs text-muted">
+          Saving progress…
+        </p>
+        {state.message && !state.ok && (
+          <p role="alert" className={errClass}>
+            {state.message}
+          </p>
+        )}
+        {(coverUploading || mediaUploading) && (
+          <p role="status" className="mt-2 text-sm text-muted">
+            Wait for your uploads to finish before saving or submitting.
+          </p>
+        )}
         <div className="mt-8 flex flex-col gap-4 border-t border-border pt-5 sm:flex-row sm:items-center sm:justify-between">
           {step > 0 ? (
             <button
@@ -612,12 +804,26 @@ export function SubmitForm({
           <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:gap-4">
             {/* Saves whatever's filled in and lands on the edit page, where the
                 draft can be finished and published later. */}
-            <Button type="submit" name="intent" value="draft" variant="quiet" size="none" disabled={pending} className="w-full sm:w-auto">
+            <Button
+              type="submit"
+              name="intent"
+              value="draft"
+              variant="quiet"
+              size="none"
+              disabled={busy}
+              className="w-full sm:w-auto"
+            >
               Save draft
             </Button>
 
             {isLast ? (
-              <Button key="submit" type="submit" size="lg" disabled={pending} className="w-full sm:w-auto">
+              <Button
+                key="submit"
+                type="submit"
+                size="lg"
+                disabled={busy}
+                className="w-full sm:w-auto"
+              >
                 {pending ? "Sending…" : "Submit for review"}
               </Button>
             ) : (

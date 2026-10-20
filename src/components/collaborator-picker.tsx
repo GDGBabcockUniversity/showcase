@@ -15,12 +15,14 @@ export function CollaboratorPicker({
   max,
   labelledBy,
   initial = [],
+  onChange,
 }: {
   name: string;
   max: number;
   labelledBy: string;
   // Pre-selected people, so the edit form starts from what's already saved.
   initial?: CollaboratorOption[];
+  onChange?: (picked: CollaboratorOption[]) => void;
 }) {
   const listId = useId();
   const [query, setQuery] = useState("");
@@ -71,6 +73,7 @@ export function CollaboratorPicker({
   function add(option: CollaboratorOption) {
     if (picked.length >= max || picked.some((p) => p.id === option.id)) return;
     setPicked([...picked, option]);
+    onChange?.([...picked, option]);
     setQuery("");
     setOptions([]);
     setOpen(false);
@@ -78,6 +81,7 @@ export function CollaboratorPicker({
 
   function remove(id: string) {
     setPicked(picked.filter((p) => p.id !== id));
+    onChange?.(picked.filter((p) => p.id !== id));
   }
 
   const available = options.filter((o) => !picked.some((p) => p.id === o.id));

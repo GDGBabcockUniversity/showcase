@@ -114,6 +114,29 @@ The first script creates the base data; the second can be rerun to add more inte
 
 Use migrations (`npx drizzle-kit migrate`) for a shared or production database; `db:push` is most useful during local schema iteration.
 
+## Submission recovery
+
+The submission checklist automatically saves text, selections, completed upload URLs,
+collaborators, and the current step in this browser, separately for each account.
+Reloading restores that progress. This does not sync across devices; **Save draft**
+saves to the account and opens the project editor. Files still uploading cannot be
+restored, so saving and submitting wait until uploads finish.
+
+Project, contributor, and topic writes commit together. A stable submission ID makes
+retries safe if the server commits but its response is lost. Browser recovery data is
+cleared only after a confirmed submission or explicit draft save.
+
+Run the recovery parser checks with `bun src/lib/submission-draft.test.ts`.
+For submission integration checks, migrate a disposable local PostgreSQL database
+whose name ends in `_test`, then run:
+
+```bash
+TEST_DATABASE_URL=postgresql://user:password@localhost:5432/showcase_test bun tests/submission.test.mjs
+```
+
+The integration checks cover rollback after a related write fails, concurrent
+retries, ownership, explicit drafts, invalid uploads, and expired sessions.
+
 ## Signal scoring
 
 Scores are refreshed nightly. Each month is scored as its own cohort, and activity counts from publication through the end of that calendar month. Counts are normalized within each month’s cohort, then weighted as follows:

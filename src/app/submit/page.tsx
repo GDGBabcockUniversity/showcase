@@ -1,185 +1,21 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { randomUUID } from "node:crypto";
+import { auth } from "@/lib/auth";
 import { Nav } from "@/components/nav";
 import { Footer } from "@/components/footer";
 import { Dots } from "@/components/dots";
-import { PROJECT_TYPES } from "@/lib/departments";
-import { MAX_TAGS, TAGS } from "@/lib/tags";
-import { auth } from "@/lib/auth";
-import { eq, inArray } from "drizzle-orm";
-import { db } from "@/db";
-import { project, projectContributor, projectTag, user } from "@/db/schema";
-import {
-  isUploadUrl,
-  MAX_COLLABORATORS,
-  MAX_EXTRA_MEDIA,
-  SUMMARY_MAX,
-  SUMMARY_MIN,
-  TITLE_MAX,
-  TITLE_MIN,
-} from "@/lib/limits";
-import { SubmitForm, type SubmitState } from "./submit-form";
+import { SubmitForm } from "./submit-form";
+import { submitProject } from "./actions";
 
 export const metadata: Metadata = {
   title: "Submit — GDG Babcock Showcase",
   description: "Put your project on the board. Every submission is reviewed.",
 };
 
-async function submitProject(_: SubmitState, formData: FormData): Promise<SubmitState> {
-  "use server";
-
+export default async function SubmitPage() {
   const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) {
-    redirect("/?authModal=1&redirect=/submit");
-  }
-
-  // Draft saves keep whatever's filled in so far — the only hard requirement
-  // is a title to recognise it by. Everything else is checked on publish.
-  const draft = formData.get("intent") === "draft";
-
-  const title = String(formData.get("title") ?? "").trim();
-  const summary = String(formData.get("summary") ?? "").trim();
-  const type = String(formData.get("type") ?? "");
-  // Checkbox chips, one value each — anything not in the vocabulary is dropped.
-  const tags = [...new Set(formData.getAll("tags").map(String))].filter((t) =>
-    (TAGS as readonly string[]).includes(t),
-  );
-  const url = String(formData.get("url") ?? "").trim();
-  // The picker submits user ids, one hidden input each.
-  const collaboratorIds = [
-    ...new Set(
-      formData.getAll("collaborators").map((v) => String(v)).filter(Boolean),
-    ),
-  ].filter((id) => id !== session.user.id);
-  // UploadThing URLs, posted by the drop zones — the bytes never touch this action.
-  const cover = String(formData.get("cover") ?? "").trim();
-  const media = formData.getAll("media").map(String).filter(Boolean);
-
-  const errors: SubmitState["errors"] = {};
-  if (draft) {
-    if (title.length < TITLE_MIN) {
-      return {
-        ok: false,
-        errors: { title: "A draft still needs a name." },
-        message: "Give the draft a title first.",
-      };
-    }
-    const id = randomUUID();
-    await db.insert(project).values({
-      id,
-      userId: session.user.id,
-      // Sliced rather than rejected: a draft never bounces on length, and the
-      // varchar limits would throw. Unknown upload hosts are dropped outright.
-      title: title.slice(0, TITLE_MAX),
-      summary: summary.slice(0, SUMMARY_MAX),
-      type: (PROJECT_TYPES as readonly string[]).includes(type) ? type : "",
-      url,
-      cover: isUploadUrl(cover) ? cover : null,
-      media: media.filter(isUploadUrl).slice(0, MAX_EXTRA_MEDIA),
-      draft: true,
-    });
-    const draftCollaborators = collaboratorIds.slice(0, MAX_COLLABORATORS);
-    if (draftCollaborators.length > 0) {
-      await db
-        .insert(projectContributor)
-        .values(draftCollaborators.map((userId) => ({ id: randomUUID(), projectId: id, userId })));
-    }
-    const draftTags = tags.slice(0, MAX_TAGS);
-    if (draftTags.length > 0) {
-      await db.insert(projectTag).values(draftTags.map((tagId) => ({ id: randomUUID(), projectId: id, tagId })));
-    }
-    redirect(`/project/${id}/edit`);
-  }
-
-  if (title.length < TITLE_MIN) errors.title = "Give it a real name.";
-  if (title.length > TITLE_MAX) errors.title = `Under ${TITLE_MAX} characters.`;
-  if (summary.length < SUMMARY_MIN)
-    errors.summary = `One full sentence, at least ${SUMMARY_MIN} characters.`;
-  if (summary.length > SUMMARY_MAX) errors.summary = `Under ${SUMMARY_MAX} characters.`;
-  if (!(PROJECT_TYPES as readonly string[]).includes(type)) errors.type = "Pick a type.";
-  if (tags.length > MAX_TAGS) errors.tags = `Up to ${MAX_TAGS} topics.`;
-  if (url) {
-    try {
-      const u = new URL(url);
-      if (u.protocol !== "http:" && u.protocol !== "https:") errors.url = "http or https only.";
-    } catch {
-      errors.url = "Not a valid URL.";
-    }
-  }
-
-  // Never trust ids straight off the form — resolve them against real accounts.
-  // The names that come back are what the receipt shows.
-  let collaborators: { id: string; name: string }[] = [];
-  if (collaboratorIds.length > MAX_COLLABORATORS) {
-    errors.collaborators = `Up to ${MAX_COLLABORATORS} collaborators.`;
-  } else if (collaboratorIds.length > 0) {
-    collaborators = await db
-      .select({ id: user.id, name: user.name })
-      .from(user)
-      .where(inArray(user.id, collaboratorIds));
-    if (collaborators.length !== collaboratorIds.length) {
-      errors.collaborators = "One of those accounts no longer exists.";
-    }
-  }
-
-  // Size and MIME are enforced by the upload route; here we only check that
-  // what came back is a URL we actually issued.
-  if (!cover) {
-    errors.cover = "Cover image is required.";
-  } else if (!isUploadUrl(cover)) {
-    errors.cover = "That cover didn't upload properly — try again.";
-  }
-
-  if (media.length > MAX_EXTRA_MEDIA) {
-    errors.media = `Up to ${MAX_EXTRA_MEDIA} extra images.`;
-  } else if (media.some((u) => !isUploadUrl(u))) {
-    errors.media = "One of those images didn't upload properly — try again.";
-  }
-
-  if (Object.keys(errors).length > 0) {
-    return { ok: false, errors, message: "Fix the highlighted fields." };
-  }
-
-  // Denormalized onto the project at submit time so cohort/ranking queries
-  // never need to join back to `user`.
-  const [submitter] = await db.select({ department: user.department }).from(user).where(eq(user.id, session.user.id));
-
-  const id = randomUUID();
-  await db.insert(project).values({
-    id,
-    userId: session.user.id,
-    title,
-    summary,
-    type,
-    url: url || "",
-    cover,
-    media,
-    department: submitter?.department ?? null,
-    draft: false,
-    status: "PENDING",
-  });
-  if (collaborators.length > 0) {
-    await db
-      .insert(projectContributor)
-      .values(collaborators.map((c) => ({ id: randomUUID(), projectId: id, userId: c.id })));
-  }
-  if (tags.length > 0) {
-    await db.insert(projectTag).values(tags.map((tagId) => ({ id: randomUUID(), projectId: id, tagId })));
-  }
-
-  return {
-    ok: true,
-    receipt: {
-      title,
-      collaborators: collaborators.map((c) => c.name),
-      media: 1 + media.length,
-    },
-  };
-}
-
-export default function SubmitPage() {
+  if (!session) redirect("/?authModal=1&redirect=/submit");
   return (
     <>
       <Nav />
@@ -190,7 +26,11 @@ export default function SubmitPage() {
         </p>
 
         <div className="mt-8">
-          <SubmitForm action={submitProject} />
+          <SubmitForm
+            key={session.user.id}
+            userId={session.user.id}
+            action={submitProject}
+          />
         </div>
       </main>
       <Footer />
