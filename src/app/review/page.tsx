@@ -1,9 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { asc, eq, inArray } from "drizzle-orm";
-import { Nav } from "@/components/nav";
-import { Footer } from "@/components/footer";
-import { Dots } from "@/components/dots";
+import { and, asc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import {
   collaborationRequest,
@@ -11,10 +8,20 @@ import {
   project,
   user,
 } from "@/db/schema";
-import { dismissCollaborationRequestReport } from "@/app/community-actions";
 import { requireRole } from "@/lib/require-role";
-import { STATUS_LABEL, type ProjectStatus } from "@/lib/project-status";
+import { type ProjectStatus } from "@/lib/project-status";
 import { getTopThreeProjects } from "@/lib/projects";
+import {
+  LuArrowUpRight,
+  LuCheck,
+  LuClock3,
+  LuFlag,
+  LuInbox,
+  LuTrophy,
+} from "react-icons/lu";
+import { ReviewQueue } from "./review-queue";
+import { ReviewSection } from "./review-ui";
+import { DismissReportButton } from "./report-actions";
 
 export const metadata: Metadata = {
   title: "Review — GDG Babcock Showcase",
@@ -28,15 +35,22 @@ async function getQueue() {
       status: project.status,
       createdAt: project.createdAt,
       by: user.name,
+      cover: project.cover,
+      department: project.department,
     })
     .from(project)
     .innerJoin(user, eq(project.userId, user.id))
-    .where(inArray(project.status, ["PENDING", "CHANGES_REQUESTED"]))
+    .where(
+      and(
+        eq(project.draft, false),
+        inArray(project.status, ["PENDING", "CHANGES_REQUESTED"]),
+      ),
+    )
     .orderBy(asc(project.createdAt));
 }
 
 export default async function ReviewPage() {
-  await requireRole("REVIEWER");
+  const session = await requireRole("REVIEWER");
   const [queue, topThree, reports] = await Promise.all([
     getQueue(),
     getTopThreeProjects(),
@@ -58,121 +72,194 @@ export default async function ReviewPage() {
       .innerJoin(user, eq(user.id, collaborationRequestReport.reportedBy)),
   ]);
 
-  return (
-    <>
-      <Nav />
-      <main className="mx-auto w-full max-w-5xl px-5 py-10 sm:py-14">
-        <p className="eyebrow flex items-center gap-3 border-b border-border pb-6">
-          <Dots />
-          Review queue
-        </p>
+  const pending = queue.filter((p) => p.status === "PENDING").length;
+  const changes = queue.filter((p) => p.status === "CHANGES_REQUESTED").length;
 
-        <section className="mt-8">
-          <h1 className="font-display text-2xl font-semibold tracking-tight">
-            Waiting on a decision
-          </h1>
-          {queue.length === 0 ? (
-            <p className="mt-4 text-sm text-muted">Nothing in the queue.</p>
+  return (
+    <div className="space-y-7 sm:space-y-9">
+      <header>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="review-caption">Workspace / Overview</p>
+          <span className="inline-flex items-center gap-2 rounded-full border border-border bg-surface px-3 py-1.5 text-xs text-muted">
+            <span className="h-1.5 w-1.5 rounded-full bg-green" aria-hidden />
+            {session.user.role === "ADMIN" ? "Admin access" : "Reviewer access"}
+          </span>
+        </div>
+        <h1 className="mt-5 text-3xl font-semibold tracking-[-0.035em] sm:text-4xl">
+          Review queue
+        </h1>
+        <p className="mt-3 max-w-xl text-sm leading-relaxed text-muted">
+          A closer look at what’s next. Review student work, resolve reports,
+          and keep the board worth discovering.
+        </p>
+      </header>
+
+      <div
+        className="grid gap-3 sm:grid-cols-3 sm:gap-4"
+        aria-label="Workspace summary"
+      >
+        {[
+          {
+            label: "Awaiting review",
+            value: pending,
+            hint: "Ready for a first look",
+            icon: LuInbox,
+            tone: "review-tone-yellow",
+            href: "#submissions",
+          },
+          {
+            label: "Changes requested",
+            value: changes,
+            hint: "Waiting on their makers",
+            icon: LuClock3,
+            tone: "review-tone-blue",
+            href: "#submissions",
+          },
+          {
+            label: "Open reports",
+            value: reports.length,
+            hint: "Community feedback to resolve",
+            icon: LuFlag,
+            tone: "review-tone-red",
+            href: "#reports",
+          },
+        ].map((stat) => (
+          <a
+            key={stat.label}
+            href={stat.href}
+            className="review-panel review-row flex items-center gap-4 p-5 sm:block sm:p-6"
+          >
+            <div className="flex items-center justify-between gap-4">
+              <stat.icon size={19} aria-hidden className={stat.tone} />
+              <span className="hidden text-muted sm:block">
+                <LuArrowUpRight size={15} aria-hidden />
+              </span>
+            </div>
+            <div className="flex-1 sm:mt-5">
+              <p className="text-xs font-medium text-muted">{stat.label}</p>
+              <p className="mt-1 text-3xl font-semibold tracking-tight tabular-nums sm:mt-2">
+                {stat.value}
+              </p>
+              <p className="mt-2 hidden text-xs text-muted sm:block">
+                {stat.hint}
+              </p>
+            </div>
+          </a>
+        ))}
+      </div>
+
+      <ReviewSection
+        id="submissions"
+        title="Submissions"
+        description="Every project starts with a thoughtful review."
+        accessory={
+          <span className="review-caption pt-1">{queue.length} total</span>
+        }
+      >
+        <ReviewQueue
+          projects={queue.map((p) => ({
+            ...p,
+            status: p.status as ProjectStatus,
+            createdAt: p.createdAt.toISOString(),
+          }))}
+        />
+      </ReviewSection>
+
+      <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
+        <ReviewSection
+          id="reports"
+          title="Collaboration reports"
+          description="Help keep project conversations constructive."
+          accessory={<LuFlag size={17} aria-hidden className="text-muted" />}
+        >
+          {reports.length === 0 ? (
+            <div className="border-t border-border px-6 py-10">
+              <span className="review-tone-green inline-flex items-center gap-2 text-sm font-medium">
+                <LuCheck size={17} aria-hidden />
+                No open reports
+              </span>
+              <p className="mt-2 text-xs leading-relaxed text-muted">
+                Community reports will appear here when they need your
+                attention.
+              </p>
+            </div>
           ) : (
-            <ol className="mt-4 divide-y divide-border border-y border-border">
-              {queue.map((p) => (
+            <ul className="divide-y divide-border border-t border-border">
+              {reports.map((report) => (
+                <li
+                  key={`${report.requestId}-${report.reporter}`}
+                  className="p-5 sm:p-6"
+                >
+                  <Link
+                    href={`/review/${report.projectId}`}
+                    className="inline-flex items-center gap-2 text-sm font-semibold hover:underline"
+                  >
+                    {report.title}
+                    <LuArrowUpRight size={14} aria-hidden />
+                  </Link>
+                  <p className="mt-2 break-words text-xs leading-relaxed text-muted">
+                    Reported by {report.reporter} · {report.reason}
+                  </p>
+                  <blockquote className="my-4 break-words rounded-xl border border-border bg-bg px-4 py-3 text-sm leading-relaxed text-muted">
+                    “{report.message}”
+                  </blockquote>
+                  <DismissReportButton requestId={report.requestId} />
+                </li>
+              ))}
+            </ul>
+          )}
+        </ReviewSection>
+
+        <ReviewSection
+          id="rankings"
+          title="This month’s top three"
+          description="A quick pulse on the public board."
+          accessory={
+            <LuTrophy size={17} aria-hidden className="review-tone-yellow" />
+          }
+        >
+          {topThree.length === 0 ? (
+            <p className="border-t border-border px-6 py-10 text-sm text-muted">
+              Rankings will appear once projects earn signal this month.
+            </p>
+          ) : (
+            <ol className="divide-y divide-border border-t border-border">
+              {topThree.map((p, i) => (
                 <li key={p.id}>
                   <Link
                     href={`/review/${p.id}`}
-                    className="flex items-center justify-between gap-4 py-4 hover:text-blue"
+                    className="review-row flex items-center gap-3 px-5 py-5 sm:px-6"
                   >
-                    <span className="min-w-0">
-                      <span className="block truncate font-display text-lg font-semibold">
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-surface-2 text-xs font-semibold text-muted">
+                      {String(i + 1).padStart(2, "0")}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-medium">
                         {p.title}
                       </span>
-                      <span className="block font-mono text-[11px] uppercase tracking-wider text-muted">
-                        by {p.by}
+                      <span className="mt-1 block text-xs tabular-nums text-muted">
+                        {p.signalScore.toFixed(2)} signal
                       </span>
                     </span>
-                    <span className="shrink-0 rounded-full border border-border px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider text-muted">
-                      {STATUS_LABEL[p.status as ProjectStatus]}
-                    </span>
+                    <LuArrowUpRight
+                      size={16}
+                      aria-hidden
+                      className="text-muted"
+                    />
                   </Link>
                 </li>
               ))}
             </ol>
           )}
-        </section>
-
-        <section className="mt-12 border-t border-border pt-10">
-          <h2 className="font-display text-2xl font-semibold tracking-tight">
-            Collaboration reports
-          </h2>
-          {reports.length === 0 ? (
-            <p className="mt-3 text-sm text-muted">No open reports.</p>
-          ) : (
-            <ul className="mt-4 divide-y divide-border border-y border-border">
-              {reports.map((report) => (
-                <li
-                  key={report.requestId}
-                  className="flex items-center justify-between gap-4 py-4"
-                >
-                  <span className="text-sm">
-                    <Link
-                      href={`/review/${report.projectId}`}
-                      className="text-blue hover:underline"
-                    >
-                      {report.title}
-                    </Link>
-                    <span className="block text-xs text-muted">
-                      Reported by {report.reporter}: {report.reason}
-                    </span>
-                    <span className="mt-1 block max-w-xl text-xs text-muted">
-                      “{report.message}”
-                    </span>
-                  </span>
-                  <form
-                    action={dismissCollaborationRequestReport.bind(
-                      null,
-                      report.requestId,
-                    )}
-                  >
-                    <button className="text-xs text-blue">Dismiss</button>
-                  </form>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-
-        <section className="mt-12 border-t border-border pt-10">
-          <h2 className="font-display text-2xl font-semibold tracking-tight">
-            This month&apos;s top 3
-          </h2>
-          <p className="mt-2 text-sm text-muted">
-            A project flagged by reviewers as gamed can be demoted from here —
-            open it to see its abuse flags and interaction history first.
+          <p className="border-t border-border px-5 py-4 text-xs leading-relaxed text-muted sm:px-6">
+            Open a project to review its activity before taking action on a
+            ranking.
           </p>
-          <ol className="mt-4 divide-y divide-border border-y border-border">
-            {topThree.map((p, i) => (
-              <li key={p.id}>
-                <Link
-                  href={`/review/${p.id}`}
-                  className="flex items-center justify-between gap-4 py-4 hover:text-blue"
-                >
-                  <span className="min-w-0">
-                    <span className="font-mono text-xs text-muted">
-                      № {i + 1}
-                    </span>{" "}
-                    <span className="font-display text-lg font-semibold">
-                      {p.title}
-                    </span>
-                  </span>
-                  <span className="shrink-0 font-mono text-xs text-muted tabular-nums">
-                    {p.signalScore.toFixed(2)} signal
-                  </span>
-                </Link>
-              </li>
-            ))}
-          </ol>
-        </section>
-      </main>
-      <Footer />
-    </>
+        </ReviewSection>
+      </div>
+      <p className="pb-3 text-center text-xs text-muted">
+        Made by students. Reviewed with care.
+      </p>
+    </div>
   );
 }
