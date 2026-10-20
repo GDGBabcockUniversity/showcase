@@ -263,7 +263,7 @@ export default async function AccountPage() {
         </p>
         <section className="mt-8">
           <p className="eyebrow">Signal earned</p>
-          <div className="mt-4 grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-border bg-border sm:grid-cols-5">
+          <div className="mt-4 grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-border bg-border sm:grid-cols-4">
             {stats.map((s) => (
               <div key={s.label} className="bg-surface p-5">
                 <p className="font-mono text-[10px] uppercase tracking-wider text-muted">

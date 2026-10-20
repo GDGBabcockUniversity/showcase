@@ -20,12 +20,12 @@ export function DepartmentSelect({
   }
 
   return (
-    <label className="flex items-center gap-2 text-sm text-muted">
-      <span className="font-mono text-[10px] uppercase tracking-wider text-muted">Department</span>
+    <label className="flex w-full min-w-0 items-center gap-2 text-sm text-muted sm:w-auto">
+      <span className="shrink-0 font-mono text-[10px] uppercase tracking-wider text-muted">Department</span>
       <select
         value={current ?? ""}
         onChange={(e) => onChange(e.target.value)}
-        className="rounded-full border border-border bg-bg px-4 py-2 text-sm text-fg outline-none transition-colors hover:border-blue/50"
+        className="min-w-0 flex-1 rounded-full border border-border bg-bg px-4 py-2 text-sm text-fg outline-none transition-colors hover:border-blue/50 sm:max-w-xs"
       >
         <option value="">All departments</option>
         {DEPARTMENTS.map((department) => (
