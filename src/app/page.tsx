@@ -23,7 +23,7 @@ import {
 } from "@/lib/departments";
 import { TAGS, TAG_LABEL, type Tag } from "@/lib/tags";
 import { ENGAGEMENT_WEIGHTS } from "@/lib/signal-scores";
-import { FEED_BUCKETS, feedBucket } from "@/lib/when";
+import { FEED_BUCKETS, FEED_WINDOW_DAYS, feedBucket } from "@/lib/when";
 import { LuChevronDown } from "react-icons/lu";
 
 export const metadata: Metadata = {
@@ -76,9 +76,13 @@ export default async function Home({
   const lastTopThree = await getTopThreeProjects()
   const ranked = [...filtered].sort((a, b) => b.signalScore - a.signalScore);
 
+  // Recency is when a project went live, not when its draft row was created:
+  // submissions sit in review for weeks, so createdAt buried a just-approved
+  // project at the age of its first draft. publishedAt is what /archive keys on
+  // too; the fallback only guards rows that predate the review workflow.
   const groups = FEED_BUCKETS.map((label) => ({
     label,
-    items: ranked.filter((p) => feedBucket(p.createdAt) === label),
+    items: ranked.filter((p) => feedBucket(p.publishedAt ?? p.createdAt) === label),
   })).filter((g) => g.items.length > 0);
   const olderCount = filtered.length - groups.reduce((n, g) => n + g.items.length, 0);
 
@@ -111,8 +115,8 @@ export default async function Home({
               Every project, ranked by signal.
             </h1>
             <p className="mt-3 max-w-xl text-sm leading-relaxed text-muted sm:text-base">
-              What Babcock students shipped this month, ordered by the
-              weighted interaction of the campus community.
+              What Babcock students shipped in the last {FEED_WINDOW_DAYS} days,
+              ordered by the weighted interaction of the campus community.
             </p>
           </div>
         </section>
@@ -212,7 +216,7 @@ export default async function Home({
               </p>
             ) : groups.length === 0 ? (
               <div className="rounded-2xl border border-border bg-surface py-12 text-center text-muted">
-                <p>Nothing shipped this month for that filter.</p>
+                <p>Nothing shipped in the last {FEED_WINDOW_DAYS} days for that filter.</p>
                 <Link href="/archive" className="mt-2 inline-block text-sm text-blue hover:underline">
                   Browse the archive →
                 </Link>
@@ -233,7 +237,7 @@ export default async function Home({
 
             {olderCount > 0 && (
               <p className="mt-8 text-center text-sm text-muted">
-                {olderCount} more project{olderCount === 1 ? "" : "s"} from before this month —{" "}
+                {olderCount} more project{olderCount === 1 ? "" : "s"} from earlier —{" "}
                 <Link href="/archive" className="text-blue hover:underline">
                   browse the archive →
                 </Link>
