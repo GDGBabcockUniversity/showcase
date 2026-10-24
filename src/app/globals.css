@@ -3,16 +3,20 @@
 /* GDG Babcock Showcase — dark theme.
    Signature motif: the four Google dots double as the rubric score meter. */
 @theme {
-  --color-bg: #0b0b0c;
-  --color-surface: #151517;
-  --color-surface-2: #1c1c1f;
-  --color-border: #26262a;
-  --color-fg: #ededef;
-  --color-muted: #9a9aa0;
+  /* A touch more separation between the page and the surfaces on it: the old
+     8% gap between bg and surface left cards barely detached from the board
+     behind them. Still near-black rather than black, so shadows have
+     somewhere to land. */
+  --color-bg: #09090b;
+  --color-surface: #141417;
+  --color-surface-2: #1d1d21;
+  --color-border: #28282e;
+  --color-fg: #f0f0f2;
+  --color-muted: #9d9da5;
   /* Solid floating layer — popovers, cards, toasts. Matches the surface they
      sit over so overlays read as part of the page instead of a see-through
      hole. */
-  --color-panel: #151517;
+  --color-panel: #141417;
 
   /* GDG functional accents */
   --color-blue: #4285f4; /* primary / links */
@@ -23,6 +27,38 @@
   --font-display: var(--font-bricolage), ui-sans-serif, system-ui, sans-serif;
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-jetbrains), ui-monospace, monospace;
+
+  /* Type scale: tracking and leading belong to a size, not to the typeface.
+     Letters drift apart as they grow and crowd together as they shrink, so a
+     single letter-spacing is necessarily wrong at one end of the scale —
+     tracking runs negative on display sizes and slightly positive on caption
+     sizes. Leading runs the other way, tight on headlines and open on body.
+
+     Pairing them with each step means `text-2xl` is optically right on its
+     own. An explicit `tracking-*` or `leading-*` still overrides, so the
+     per-component values already in the app keep working. */
+  --text-xs--line-height: 1.5;
+  --text-xs--letter-spacing: 0.016em;
+  --text-sm--line-height: 1.55;
+  --text-sm--letter-spacing: 0.006em;
+  --text-base--line-height: 1.6;
+  --text-base--letter-spacing: 0em;
+  --text-lg--line-height: 1.5;
+  --text-lg--letter-spacing: -0.008em;
+  --text-xl--line-height: 1.4;
+  --text-xl--letter-spacing: -0.014em;
+  --text-2xl--line-height: 1.27;
+  --text-2xl--letter-spacing: -0.019em;
+  --text-3xl--line-height: 1.18;
+  --text-3xl--letter-spacing: -0.023em;
+  --text-4xl--line-height: 1.1;
+  --text-4xl--letter-spacing: -0.026em;
+  --text-5xl--line-height: 1.05;
+  --text-5xl--letter-spacing: -0.03em;
+  --text-6xl--line-height: 1;
+  --text-6xl--letter-spacing: -0.033em;
+  --text-7xl--line-height: 0.98;
+  --text-7xl--letter-spacing: -0.036em;
 }
 
 html {
@@ -31,15 +67,20 @@ html {
 
 html.light {
   color-scheme: light;
-  --color-bg: #ffffff;
   /* Blue-tinted neutrals rather than flat grey, so panels sit in the same
-     hue family as the blue used for links and active chips. */
-  --color-surface: #f1f4f9;
-  --color-surface-2: #e5ebf4;
-  --color-border: #d5dde9;
+     hue family as the blue used for links and active chips.
+
+     The page is a shade off white and the cards are white, rather than the
+     other way round. Surfaces were previously darker than the page they sat
+     on, which reads as cut into it instead of resting on it — so a card and
+     an inset well looked the same. */
+  --color-bg: #f4f6fa;
+  --color-surface: #ffffff;
+  --color-surface-2: #e9eef6;
+  --color-border: #dbe2ed;
   --color-fg: #0b0b0c;
-  --color-muted: #5f5f66;
-  --color-panel: #f1f4f9;
+  --color-muted: #5b6070;
+  --color-panel: #ffffff;
 }
 
 body {
