@@ -173,8 +173,8 @@ export type ProfileState = { ok: boolean; error?: string };
 
 // Profile edits go through better-auth rather than a direct db write, so the
 // session it hands back afterwards reflects the new values.
-// The bytes go straight from the browser to UploadThing; this only records the
-// URL that came back, and only one we actually issued.
+// The bytes go straight from the browser to object storage; this only records
+// the URL that came back, and only one we actually issued.
 export async function updateAvatar(url: string): Promise<ProfileState> {
   await requireSession();
   if (!isUploadUrl(url))

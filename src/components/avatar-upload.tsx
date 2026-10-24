@@ -5,35 +5,41 @@ import { LuPencil } from "react-icons/lu";
 import { toast } from "sonner";
 import { updateAvatar } from "@/app/actions";
 import { useSession } from "@/lib/auth-client";
-import { useUploadThing } from "@/lib/uploadthing";
+import { uploadFiles } from "@/lib/uploads";
 
 export function AvatarUpload({ name, image }: { name: string; image: string | null }) {
   // Shown straight after the upload so the new picture doesn't wait on a
   // revalidation round-trip.
   const [src, setSrc] = useState(image);
   const [error, setError] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
   const { refetch } = useSession();
 
-  const { startUpload, isUploading } = useUploadThing("avatar", {
-    onClientUploadComplete: async ([file]) => {
-      const saved = await updateAvatar(file.ufsUrl);
+  async function onPick(file: File) {
+    setError(null);
+    setIsUploading(true);
+    try {
+      const [uploaded] = await uploadFiles("avatar", [file]);
+      const saved = await updateAvatar(uploaded.publicUrl);
       if (!saved.ok) {
         const message = saved.error ?? "Couldn't save that.";
         setError(message);
         toast.error(message);
         return;
       }
-      setSrc(file.ufsUrl);
+      setSrc(uploaded.publicUrl);
       setError(null);
       toast.success("Profile picture updated.");
       // The nav reads the avatar from better-auth's client session store.
       refetch();
-    },
-    onUploadError: (e) => {
-      setError(e.message);
-      toast.error(e.message);
-    },
-  });
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "Upload failed.";
+      setError(message);
+      toast.error(message);
+    } finally {
+      setIsUploading(false);
+    }
+  }
 
   return (
     <div>
@@ -82,8 +88,7 @@ export function AvatarUpload({ name, image }: { name: string; image: string | nu
           onChange={(e) => {
             const file = e.target.files?.[0];
             if (!file) return;
-            setError(null);
-            void startUpload([file]);
+            void onPick(file);
           }}
           className="sr-only"
         />
