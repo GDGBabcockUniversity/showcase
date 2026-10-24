@@ -14,7 +14,7 @@ export async function scanForAbuse(): Promise<AbuseScanRow[]> {
     GROUP BY project_id, ip, day
     HAVING count(*) > ${DAILY_THRESHOLD}
   `);
-  return result.rows.map((r) => ({ projectId: r.project_id, ip: r.ip, day: r.day, count: Number(r.n) }));
+  return result.map((r) => ({ projectId: r.project_id, ip: r.ip, day: r.day, count: Number(r.n) }));
 }
 
 export async function recordAbuseFlags(rows: AbuseScanRow[]): Promise<void> {
@@ -42,5 +42,5 @@ export async function hourlyInteractionHistogram(
     GROUP BY 1
     ORDER BY 1
   `);
-  return result.rows.map((r) => ({ hour: r.hour, count: Number(r.n) }));
+  return result.map((r) => ({ hour: r.hour, count: Number(r.n) }));
 }

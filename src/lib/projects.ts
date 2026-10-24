@@ -468,6 +468,83 @@ export async function searchPeople(query: string): Promise<Person[]> {
     .limit(6);
 }
 
+// What the search palette draws for a project. Deliberately not `Project`:
+// that shape carries view, click, like and comment totals, and assembling it
+// means four aggregate queries over the whole interaction table. This runs on
+// every keystroke, so it asks for the handful of columns a result row
+// actually renders and nothing else.
+export type ProjectHit = {
+  id: string;
+  title: string;
+  summary: string;
+  cover: string | null;
+  department: string;
+  type: ProjectType;
+};
+
+/**
+ * Type-ahead search over published projects.
+ *
+ * One SQL query with a LIMIT, rather than the existing /search page's habit
+ * of loading every published project and filtering in JavaScript — fine for a
+ * page rendered once on submit, wasteful several times a second.
+ *
+ * Matches the same fields a reader would expect: the title, the pitch, the
+ * maker's name, and the topic tags. Tags live in their own table, so they are
+ * matched with an EXISTS rather than a join, which would otherwise return one
+ * duplicate row per matching tag.
+ */
+export async function searchProjectHits(
+  query: string,
+  limit = 8,
+): Promise<ProjectHit[]> {
+  const q = query.trim();
+  if (!q) return [];
+  const like = `%${q}%`;
+
+  const rows = await db
+    .select({
+      id: project.id,
+      title: project.title,
+      summary: project.summary,
+      cover: project.cover,
+      department: sql<string>`coalesce(${project.department}, 'Unfiled')`,
+      type: project.type,
+      // Left-joined: a project scored last night ranks above one that has
+      // never been scored, and both still appear.
+      score: sql<number>`coalesce(${signalScore.signalScore}, 0)`,
+    })
+    .from(project)
+    .innerJoin(user, eq(project.userId, user.id))
+    .leftJoin(signalScore, eq(signalScore.projectId, project.id))
+    .where(
+      and(
+        published(),
+        or(
+          ilike(project.title, like),
+          ilike(project.summary, like),
+          ilike(user.name, like),
+          sql`exists (
+            select 1 from ${projectTag}
+            where ${projectTag.projectId} = ${project.id}
+              and ${projectTag.tagId} ilike ${like}
+          )`,
+        ),
+      ),
+    )
+    .orderBy(desc(sql`coalesce(${signalScore.signalScore}, 0)`))
+    .limit(limit);
+
+  return rows.map((row) => ({
+    id: row.id,
+    title: row.title,
+    summary: row.summary,
+    cover: row.cover,
+    department: row.department,
+    type: row.type as ProjectType,
+  }));
+}
+
 // Owner's own view of everything they've filed, whatever its status.
 export async function getProjectsByUser(userId: string): Promise<Project[]> {
   const rows = await db

@@ -81,13 +81,13 @@ export default async function SearchPage({
               name="q"
               defaultValue={sp.q}
               placeholder="Search projects or people"
-              className="rounded-full border border-border bg-background px-4 py-2 text-sm"
+              className="rounded-full border border-border bg-bg px-4 py-2 text-sm"
             />
             <input
               name="skill"
               defaultValue={sp.skill}
               placeholder="Needed skill"
-              className="rounded-full border border-border bg-background px-4 py-2 text-sm"
+              className="rounded-full border border-border bg-bg px-4 py-2 text-sm"
             />
             <label className="flex items-center gap-2 text-sm text-muted">
               <input

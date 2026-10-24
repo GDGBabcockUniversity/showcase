@@ -32,12 +32,10 @@ async function main() {
   `);
 
   console.log("Verifying row-count parity...");
-  const [{ n: jsonbCount }] = (
-    await db.execute<{ n: string }>(sql`
-      SELECT count(*) AS n FROM (SELECT jsonb_array_elements_text(tags) FROM project) x
-    `)
-  ).rows;
-  const [{ n: joinCount }] = (await db.execute<{ n: string }>(sql`SELECT count(*) AS n FROM project_tag`)).rows;
+  const [{ n: jsonbCount }] = await db.execute<{ n: string }>(sql`
+    SELECT count(*) AS n FROM (SELECT jsonb_array_elements_text(tags) FROM project) x
+  `);
+  const [{ n: joinCount }] = await db.execute<{ n: string }>(sql`SELECT count(*) AS n FROM project_tag`);
   const ok = jsonbCount === joinCount;
   console.log(`  ${ok ? "OK" : "MISMATCH"}  project.tags elements: ${jsonbCount} -> project_tag rows: ${joinCount}`);
 

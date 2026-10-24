@@ -116,7 +116,7 @@ export async function firstCommentCounts(
     ) first_comments
     GROUP BY project_id
   `);
-  return new Map(result.rows.map((r) => [r.project_id, Number(r.n)]));
+  return new Map(result.map((r) => [r.project_id, Number(r.n)]));
 }
 
 // Raw counts for each published project in a month, from publication through

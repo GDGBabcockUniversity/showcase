@@ -1,18 +1,21 @@
-import { differenceInCalendarDays, isSameMonth } from "date-fns";
+import { differenceInCalendarDays } from "date-fns";
 
-// The feed only ever shows the current calendar month — anything older has
-// aged out to /archive, searchable by the month it was published. Within
-// this month, split into three graduated recency bands so the newest
-// launches don't get lost next to ones from three weeks ago.
-export const FEED_BUCKETS = ["This week", "Last week", "This month"] as const;
+// The feed is a rolling recency window, not a calendar month. Anchoring it to
+// the calendar meant the board emptied itself on the 1st of every month no
+// matter how active it was — and it dropped a project from four days ago just
+// because the month had rolled over. Anything past the window has aged out to
+// /archive, searchable by the month it was published.
+export const FEED_WINDOW_DAYS = 30;
+
+export const FEED_BUCKETS = ["This week", "Last week", "Earlier"] as const;
 export type FeedBucket = (typeof FEED_BUCKETS)[number];
 
-// null means "not in the current calendar month" — the feed excludes it,
-// not just labels it differently.
+// null means "outside the window" — the feed excludes it, not just labels it
+// differently. Future-dated rows are excluded too rather than counted as new.
 export function feedBucket(date: Date, now = new Date()): FeedBucket | null {
-  if (!isSameMonth(date, now)) return null;
   const days = differenceInCalendarDays(now, date);
+  if (days < 0 || days > FEED_WINDOW_DAYS) return null;
   if (days <= 7) return "This week";
   if (days <= 14) return "Last week";
-  return "This month";
+  return "Earlier";
 }
