@@ -1,11 +1,10 @@
 import Link from "next/link";
 import Image from "next/image";
-import { Suspense } from "react";
 import { cookies } from "next/headers";
 import { THEME_COOKIE, themeFromCookie } from "@/lib/theme";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { AuthStatus } from "@/components/auth-status";
-import { SearchBox } from "@/components/search-box";
+import { SearchTrigger } from "@/components/search-trigger";
 import { MobileMenu } from "@/components/mobile-menu";
 
 const LINKS = [
@@ -38,13 +37,9 @@ export async function Nav() {
         </Link>
 
         {/* Desktop View Elements */}
-        <Suspense
-          fallback={<div className="hidden lg:block lg:max-w-xs lg:flex-1" />}
-        >
-          <div className="hidden lg:block lg:max-w-xs lg:flex-1">
-            <SearchBox />
-          </div>
-        </Suspense>
+        <div className="hidden lg:block lg:max-w-xs lg:flex-1">
+          <SearchTrigger />
+        </div>
 
         <div className="hidden lg:flex items-center gap-1 rounded-full border border-border bg-surface/70 p-1 px-1">
           {LINKS.map((link) => (
@@ -67,9 +62,7 @@ export async function Nav() {
         <div className="flex lg:hidden items-center gap-3">
           <ThemeToggle initialLight={theme === "light"} />
           <MobileMenu>
-            <Suspense fallback={<div className="h-10" />}>
-              <SearchBox />
-            </Suspense>
+            <SearchTrigger />
             <div className="flex flex-col gap-1 -mx-2">
               {LINKS.map((link) => (
                 <Link
