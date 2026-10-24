@@ -52,10 +52,10 @@ async function main() {
   ];
   let mismatch = false;
   for (const c of checks) {
-    const [{ count: oldCount }] = (await db.execute<{ count: string }>(c.old)).rows;
-    const [{ count: newCount }] = (
-      await db.execute<{ count: string }>(sql`SELECT count(*) FROM interaction WHERE type = ${c.type}`)
-    ).rows;
+    const [{ count: oldCount }] = await db.execute<{ count: string }>(c.old);
+    const [{ count: newCount }] = await db.execute<{ count: string }>(
+      sql`SELECT count(*) FROM interaction WHERE type = ${c.type}`,
+    );
     const ok = oldCount === newCount;
     if (!ok) mismatch = true;
     console.log(`  ${ok ? "OK" : "MISMATCH"}  ${c.label}: ${oldCount} -> ${newCount}`);

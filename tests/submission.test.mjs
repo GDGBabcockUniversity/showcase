@@ -3,7 +3,7 @@
 import { strict as assert } from "node:assert";
 import { randomUUID } from "node:crypto";
 import { mock } from "bun:test";
-import pg from "pg";
+import postgres from "postgres";
 
 const connectionString = process.env.TEST_DATABASE_URL;
 if (!connectionString)
@@ -20,8 +20,7 @@ if (
   );
 }
 process.env.DATABASE_URL = connectionString;
-const client = new pg.Client({ connectionString });
-await client.connect();
+const client = postgres(connectionString, { max: 1 });
 const owner = randomUUID();
 const collaborator = randomUUID();
 let sessionUserId = owner;
@@ -57,17 +56,17 @@ try {
     [owner, "Owner"],
     [collaborator, "Collaborator"],
   ]) {
-    await client.query(
+    await client.unsafe(
       'INSERT INTO "user" (id, name, email) VALUES ($1, $2, $3)',
       [id, name, `${id}@example.com`],
     );
   }
   // Reproduce a write failure after the project row has been inserted.
   const failed = form();
-  await client.query(
+  await client.unsafe(
     `CREATE FUNCTION submission_test_fail() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'Injected tag write failure'; END $$`,
   );
-  await client.query(
+  await client.unsafe(
     `CREATE TRIGGER submission_test_fail BEFORE INSERT ON project_tag FOR EACH ROW WHEN (NEW.project_id = '${failed.get("submissionId")}') EXECUTE FUNCTION submission_test_fail()`,
   );
   const result = await submitProject(initial, failed);
@@ -75,14 +74,14 @@ try {
   assert.match(result.message, /couldn’t confirm/);
   assert.equal(
     (
-      await client.query("SELECT id FROM project WHERE id=$1", [
+      await client.unsafe("SELECT id FROM project WHERE id=$1", [
         failed.get("submissionId"),
       ])
-    ).rowCount,
+    ).length,
     0,
     "Related write failure must roll back the project",
   );
-  await client.query("DROP TRIGGER submission_test_fail ON project_tag");
+  await client.unsafe("DROP TRIGGER submission_test_fail ON project_tag");
   const recovered = await submitProject(initial, failed);
   assert.equal(recovered.ok, true);
   assert.deepEqual(recovered.receipt.collaborators, ["Collaborator"]);
@@ -93,18 +92,18 @@ try {
   assert.deepEqual(retries, [recovered, recovered]);
   assert.equal(
     (
-      await client.query("SELECT id FROM project WHERE id=$1", [
+      await client.unsafe("SELECT id FROM project WHERE id=$1", [
         failed.get("submissionId"),
       ])
-    ).rowCount,
+    ).length,
     1,
   );
   assert.equal(
     (
-      await client.query("SELECT id FROM project_tag WHERE project_id=$1", [
+      await client.unsafe("SELECT id FROM project_tag WHERE project_id=$1", [
         failed.get("submissionId"),
       ])
-    ).rowCount,
+    ).length,
     1,
   );
   sessionUserId = collaborator;
@@ -134,11 +133,11 @@ try {
     "PASS rollback, retry, concurrent retry, ownership, draft save, upload validation, and expired session",
   );
 } finally {
-  await client.query(
+  await client.unsafe(
     "DROP TRIGGER IF EXISTS submission_test_fail ON project_tag",
   );
-  await client.query("DROP FUNCTION IF EXISTS submission_test_fail()");
-  await client.query('DELETE FROM "user" WHERE id = ANY($1::text[])', [
+  await client.unsafe("DROP FUNCTION IF EXISTS submission_test_fail()");
+  await client.unsafe('DELETE FROM "user" WHERE id = ANY($1::text[])', [
     [owner, collaborator],
   ]);
   await client.end();
