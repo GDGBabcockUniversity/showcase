@@ -23,7 +23,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
-import { useUploadThing } from "@/lib/uploadthing";
+import { uploadFiles } from "@/lib/uploads";
 import {
   isVideoUrl,
   MAX_COLLABORATORS,
@@ -96,47 +96,53 @@ export function FileDrop({
   const [over, setOver] = useState(false);
   const [urls, setUrls] = useState<string[]>(initial);
   const [error, setError] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
 
-  // Files go straight to UploadThing on pick; the form only ever carries the
-  // resulting URLs. That also sidesteps the 8mb server-action body limit.
-  const { startUpload, isUploading } = useUploadThing(endpoint, {
-    onUploadProgress: setProgress,
-    onClientUploadComplete: (res) => {
-      const next = [
-        ...(multiple ? urls : []),
-        ...res.map(
-          (r) => r.ufsUrl + (r.type.startsWith("video/") ? VIDEO_MARK : ""),
-        ),
-      ];
-      setUrls(next);
-      onChange?.(next);
-      setError(null);
-    },
-    onUploadError: (e) => {
-      setError(e.message);
-      toast.error(e.message);
-    },
-  });
-
-  useEffect(() => {
-    onUploadingChange?.(isUploading);
-  }, [isUploading, onUploadingChange]);
-
-  function take(list: File[]) {
+  // Files go straight to object storage on pick; the form only ever carries
+  // the resulting URLs. That also sidesteps the 8mb server-action body limit.
+  async function take(list: File[]) {
     const images = list.filter((f) =>
       accept.split(",").some((a) => f.type === a.trim()),
     );
     if (images.length === 0) return;
     setError(null);
     setProgress(0);
-    void startUpload(multiple ? images : images.slice(0, 1));
+    setUploading(true);
+    try {
+      const uploaded = await uploadFiles(
+        endpoint,
+        multiple ? images : images.slice(0, 1),
+        (sent, total) => setProgress(total > 0 ? Math.round((sent / total) * 100) : 0),
+      );
+      const added = uploaded.map(
+        (u) => u.publicUrl + (u.type.startsWith("video/") ? VIDEO_MARK : ""),
+      );
+      setUrls((prev) => [...(multiple ? prev : []), ...added]);
+      setError(null);
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "Upload failed.";
+      setError(message);
+      toast.error(message);
+    } finally {
+      setUploading(false);
+    }
   }
+
+  // The parent keeps the draft in sync with whatever the drop zone holds,
+  // including files removed with the X button.
+  useEffect(() => {
+    onChange?.(urls);
+  }, [urls, onChange]);
+
+  useEffect(() => {
+    onUploadingChange?.(uploading);
+  }, [uploading, onUploadingChange]);
 
   function onDrop(e: DragEvent<HTMLLabelElement>) {
     e.preventDefault();
     setOver(false);
-    take(Array.from(e.dataTransfer.files));
+    void take(Array.from(e.dataTransfer.files));
   }
 
   return (
@@ -184,7 +190,6 @@ export function FileDrop({
                     // The label would otherwise open the file picker.
                     e.preventDefault();
                     setUrls((prev) => prev.filter((x) => x !== u));
-                    onChange?.(urls.filter((x) => x !== u));
                   }}
                   className="absolute -right-1.5 -top-1.5 h-5 w-5 bg-bg text-muted hover:border-red hover:text-red"
                 >
@@ -195,24 +200,24 @@ export function FileDrop({
           </div>
         ) : (
           <span className="font-medium text-fg">
-            {isUploading ? "Uploading…" : "Drop or click to upload"}
+            {uploading ? "Uploading…" : "Drop or click to upload"}
           </span>
         )}
         <span className="font-mono text-[10px] uppercase tracking-wider">
-          {isUploading ? "Uploading…" : hint}
+          {uploading ? "Uploading…" : hint}
         </span>
         <input
           id={id}
           type="file"
           accept={accept}
           multiple={multiple}
-          disabled={isUploading}
-          onChange={(e) => take(Array.from(e.target.files ?? []))}
+          disabled={uploading}
+          onChange={(e) => void take(Array.from(e.target.files ?? []))}
           className="sr-only"
         />
       </label>
 
-      {isUploading && (
+      {uploading && (
         <div className="mt-2 flex items-center gap-2">
           <Progress value={progress} aria-label="Upload progress" />
           <span className="font-mono text-[10px] tabular-nums text-muted">{progress}%</span>
