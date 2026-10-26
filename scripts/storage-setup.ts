@@ -6,14 +6,10 @@
 // objects back. Run it again whenever the allowed origin changes (a new deploy
 // URL, another local port).
 //
-// Reads .env / .env.local the way drizzle.config.ts does, so the same values
-// the app uses are what gets tested here.
-import { config } from "dotenv";
+// Bun auto-loads .env and .env.local (local wins) when this runs, so the same
+// values the app uses are what gets tested here.
 import { HeadBucketCommand, PutBucketCorsCommand } from "@aws-sdk/client-s3";
 import { s3Client, storageBucket } from "../src/lib/s3";
-
-config({ path: ".env.local" });
-config({ path: ".env" });
 
 const bucket = storageBucket();
 if (!bucket) {
