@@ -4,6 +4,17 @@ import Link from "next/link";
 import { signOut, useSession } from "@/lib/auth-client";
 import { SignInTrigger } from "@/components/sign-in-trigger";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 export function AuthStatus() {
@@ -40,15 +51,30 @@ export function AuthStatus() {
         </Avatar>
         <span className="sr-only">Your account, {name}</span>
       </Link>
-      <Button
-        type="button"
-        variant="outline"
-        size="none"
-        onClick={() => signOut()}
-        className="px-3 py-1.5 text-sm text-muted hover:text-fg"
-      >
-        Sign out
-      </Button>
+      <AlertDialog>
+        <AlertDialogTrigger asChild>
+          <Button
+            type="button"
+            variant="outline"
+            size="none"
+            className="px-3 py-1.5 text-sm text-muted hover:text-fg"
+          >
+            Sign out
+          </Button>
+        </AlertDialogTrigger>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Sign out?</AlertDialogTitle>
+            <AlertDialogDescription>
+              You&apos;ll need to sign in again to submit or manage your projects.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => signOut()}>Sign out</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
