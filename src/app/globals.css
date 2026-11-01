@@ -127,22 +127,8 @@ select:focus-visible {
   color: var(--color-muted);
 }
 
-/* Celebration page: falling confetti and the slow colour drift behind it.
-   Both are already covered by the prefers-reduced-motion block above. */
-@keyframes confetti-fall {
-  0% {
-    transform: translate3d(0, -12vh, 0) rotate(0deg);
-    opacity: 0;
-  }
-  10% {
-    opacity: 1;
-  }
-  100% {
-    transform: translate3d(var(--drift, 0), 105vh, 0) rotate(var(--spin, 720deg));
-    opacity: 0.9;
-  }
-}
-
+/* Celebration page: the slow colour drift behind it (confetti is animated in celebration.tsx).
+   Covered by the prefers-reduced-motion block above. */
 @keyframes gdg-drift {
   0%,
   100% {

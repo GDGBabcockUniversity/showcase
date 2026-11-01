@@ -22,6 +22,8 @@ type Piece = {
   round: boolean;
 };
 
+const reduceMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
 const r = (min: number, max: number) => min + Math.random() * (max - min);
 
 // Generated after mount: Math.random() during render would differ between
@@ -68,10 +70,22 @@ export function Confetti() {
             background: p.color,
             // Consumed by the confetti-fall keyframes / the reduced-motion rule.
             "--drift": p.drift,
-            "--spin": p.spin,
             "--rest": p.rest,
-            animation: `confetti-fall ${p.duration}s linear ${p.delay}s infinite`,
           } as React.CSSProperties}
+          ref={(el) => {
+            // Web Animations API instead of a CSS keyframe: Safari didn't
+            // animate the var()-driven keyframes. Skipped under reduced motion
+            // (the CSS rule in globals.css scatters the pieces instead).
+            if (!el || reduceMotion()) return;
+            el.animate(
+              [
+                { transform: "translate3d(0,-12vh,0) rotate(0deg)", opacity: 0 },
+                { opacity: 1, offset: 0.1 },
+                { transform: `translate3d(${p.drift},105vh,0) rotate(${p.spin})`, opacity: 0.9 },
+              ],
+              { duration: p.duration * 1000, delay: p.delay * 1000, iterations: Infinity },
+            );
+          }}
         />
       ))}
     </div>
