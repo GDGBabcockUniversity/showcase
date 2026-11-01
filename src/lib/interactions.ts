@@ -40,10 +40,11 @@ export async function recordInteraction(opts: {
     .where(eq(project.id, projectId));
   if (!proj) return { ok: false, reason: "not-found" };
 
-  // Exclude signed-in owners and contributors from every signal-driving
-  // interaction. IP matching is deliberately avoided because campus NATs
-  // can include many unrelated users.
-  if (actor.userId) {
+  // Exclude signed-in owners and contributors from signal-driving
+  // interactions, except likes: owners may like their own project, and the
+  // signal-scores query already ignores owner/contributor rows. IP matching is
+  // deliberately avoided because campus NATs can include many unrelated users.
+  if (actor.userId && type !== "like") {
     if (actor.userId === proj.userId) return { ok: false, reason: "self" };
     const [contributor] = await db
       .select({ id: projectContributor.id })
