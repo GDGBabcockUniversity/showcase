@@ -1,3 +1,6 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 
 const GDG = [
@@ -7,27 +10,44 @@ const GDG = [
   "var(--color-green)",
 ] as const;
 
-// Deterministic on purpose: Math.random() here would render different pieces
-// on the server and the client and blow up hydration. A cheap hash of the
-// index gives the same scatter every time.
-function scatter(i: number, spread: number, offset = 0) {
-  return ((i * 9301 + 49297 + offset) % 233280) / 233280 * spread;
+type Piece = {
+  color: string;
+  left: number;
+  delay: number;
+  duration: number;
+  drift: string;
+  spin: string;
+  size: number;
+  rest: string;
+  round: boolean;
+};
+
+const r = (min: number, max: number) => min + Math.random() * (max - min);
+
+// Generated after mount: Math.random() during render would differ between
+// server and client and break hydration.
+function makePieces(): Piece[] {
+  return Array.from({ length: 60 }, () => {
+    const duration = r(4, 11);
+    return {
+      color: GDG[Math.floor(Math.random() * GDG.length)],
+      left: r(0, 100),
+      // Negative delay: pieces are already mid-fall on arrival, no empty start.
+      delay: -r(0, duration),
+      duration,
+      drift: `${r(-20, 20)}vw`,
+      spin: `${r(-1080, 1080)}deg`,
+      size: r(6, 13),
+      rest: `${r(5, 85)}vh`,
+      round: Math.random() < 0.35,
+    };
+  });
 }
 
-const PIECES = Array.from({ length: 40 }, (_, i) => ({
-  color: GDG[i % GDG.length],
-  left: scatter(i, 100),
-  // Short delays: a 6s stagger meant the page looked empty on arrival.
-  delay: scatter(i, 2.5, 17),
-  duration: 5 + scatter(i, 5, 91),
-  drift: `${scatter(i, 24, 53) - 12}vw`,
-  size: 6 + scatter(i, 6, 31),
-  // Where the piece sits when motion is off — see globals.css.
-  rest: `${5 + scatter(i, 80, 7)}vh`,
-  round: i % 3 === 0,
-}));
-
 export function Confetti() {
+  const [pieces, setPieces] = useState<Piece[]>([]);
+  useEffect(() => setPieces(makePieces()), []);
+
   return (
     // Fixed rather than absolute: the fall spans the viewport instead of being
     // clipped to main's box, which on a short page cut it off almost at once.
@@ -36,7 +56,7 @@ export function Confetti() {
       aria-hidden
       className="pointer-events-none fixed inset-0 -z-10 overflow-hidden"
     >
-      {PIECES.map((p, i) => (
+      {pieces.map((p, i) => (
         <span
           key={i}
           data-slot="confetti-piece"
@@ -46,8 +66,9 @@ export function Confetti() {
             width: p.size,
             height: p.round ? p.size : p.size * 1.6,
             background: p.color,
-            // Both consumed by the confetti-fall keyframes / the reduced-motion rule.
+            // Consumed by the confetti-fall keyframes / the reduced-motion rule.
             "--drift": p.drift,
+            "--spin": p.spin,
             "--rest": p.rest,
             animation: `confetti-fall ${p.duration}s linear ${p.delay}s infinite`,
           } as React.CSSProperties}

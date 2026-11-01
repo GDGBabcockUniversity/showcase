@@ -138,7 +138,7 @@ select:focus-visible {
     opacity: 1;
   }
   100% {
-    transform: translate3d(var(--drift, 0), 105vh, 0) rotate(720deg);
+    transform: translate3d(var(--drift, 0), 105vh, 0) rotate(var(--spin, 720deg));
     opacity: 0.9;
   }
 }

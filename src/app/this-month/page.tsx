@@ -106,7 +106,7 @@ export default async function ThisMonthPage() {
           </p>
         </section>
 
-        {topThree.length === 0 ? (
+        {topThree.length < 3 ? (
           <p className="relative mt-10 rounded-2xl border border-border bg-surface px-5 py-12 text-center text-sm text-muted sm:py-16">
             Nothing has earned a place yet this cycle.
           </p>
