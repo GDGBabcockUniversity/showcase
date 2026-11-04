@@ -379,3 +379,21 @@ export const showcaseCollectionProject = pgTable(
     ),
   ],
 );
+
+// One row per like/comment someone else left on a project, addressed to its
+// owner. Cascades off the interaction, so an unlike removes the notification.
+export const notification = pgTable(
+  "notification",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    interactionId: text("interaction_id")
+      .notNull()
+      .references(() => interaction.id, { onDelete: "cascade" }),
+    readAt: timestamp("read_at"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [index("notification_user_created_idx").on(t.userId, t.createdAt)],
+);

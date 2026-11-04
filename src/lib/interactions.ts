@@ -4,6 +4,7 @@ import { db } from "@/db";
 import {
   interaction,
   interactionLog,
+  notification,
   project,
   projectContributor,
 } from "@/db/schema";
@@ -95,6 +96,12 @@ export async function recordInteraction(opts: {
     type,
     body: body ?? null,
   });
+
+  if ((type === "like" || type === "comment") && actor.userId !== proj.userId) {
+    await db
+      .insert(notification)
+      .values({ id: randomUUID(), userId: proj.userId, interactionId: id });
+  }
 
   if (ip) {
     await db

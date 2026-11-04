@@ -6,6 +6,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { AuthStatus } from "@/components/auth-status";
 import { SearchTrigger } from "@/components/search-trigger";
 import { MobileMenu } from "@/components/mobile-menu";
+import { NotificationsNav } from "@/components/notifications-nav";
 
 const LINKS = [
   { href: "/", label: "Home" },
@@ -55,12 +56,14 @@ export async function Nav() {
 
         <div className="hidden lg:flex items-center gap-3">
           <ThemeToggle initialLight={theme === "light"} />
+          <NotificationsNav />
           <AuthStatus />
         </div>
 
         {/* Mobile View Elements */}
         <div className="flex lg:hidden items-center gap-3">
           <ThemeToggle initialLight={theme === "light"} />
+          <NotificationsNav />
           <MobileMenu>
             <SearchTrigger />
             <div className="flex flex-col gap-1 -mx-2">
