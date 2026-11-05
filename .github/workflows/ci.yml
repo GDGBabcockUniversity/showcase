@@ -23,4 +23,4 @@ jobs:
       - run: bun add --global vercel@latest
         
       - name: Deploy
-        run: vercel deploy ${{ github.event_name == 'push' && '--prod' || '' }} --yes --token=${{ secrets.VERCEL_TOKEN }}
+        run: vercel deploy ${{ github.event_name == 'push' && '--prod' || '' }} --yes --no-wait --token=${{ secrets.VERCEL_TOKEN }}
