@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -114,9 +113,6 @@ export function AuthModal() {
           <DialogTitle>
             {mode === "signin" ? "Sign in to Showcase" : "Create your Showcase account"}
           </DialogTitle>
-          <DialogDescription>
-            Use your GDG Babcock account to submit projects, vote and comment.
-          </DialogDescription>
         </DialogHeader>
 
         <Button
