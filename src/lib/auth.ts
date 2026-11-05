@@ -1,84 +1,75 @@
-import { decodeJwt } from "jose";
-import { betterAuth } from "better-auth";
-import { nextCookies } from "better-auth/next-js";
-import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import type { GoogleProfile } from "better-auth/social-providers";
+import "server-only";
+import { cache } from "react";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
-import * as schema from "@/db/schema";
+import { user } from "@/db/schema";
 import { resolveUsername } from "@/lib/username-db";
-import { isAllowedDomain, normalizeEmail } from "@/lib/email";
+import { normalizeEmail } from "@/lib/email";
+import { ACCESS_COOKIE, AUTH_API_URL, gdgFetch, type GdgUser } from "@/lib/gdg-auth";
 
-export const auth = betterAuth({
-  database: drizzleAdapter(db, { provider: "pg", schema }),
-  secret: process.env.BETTER_AUTH_SECRET,
-  baseURL: process.env.BETTER_AUTH_URL,
-  emailAndPassword: {
-    enabled: true,
-  },
-  user: {
-    additionalFields: {
-      bio: { type: "string", required: false, input: true },
-      department: { type: "string", required: false, input: true },
-      level: { type: "string", required: false, input: true },
-      username: { type: "string", required: false, input: true },
-      // USER | REVIEWER | ADMIN — a real Postgres enum (see roleEnum in
-      // src/db/schema.ts). REVIEWER/ADMIN are granted by hand, never
-      // through signup; the DB column itself defaults to USER too.
-      role: { type: "string", required: false, input: false, defaultValue: "USER" },
-    },
-  },
-  databaseHooks: {
-    user: {
-      create: {
-        before: async (u) => {
-          const email = normalizeEmail(typeof u.email === "string" ? u.email : "");
-          // domain check disabled for testing — re-enable before shipping
-          // if (!isAllowedDomain(email)) return false;
-          return {
-            data: {
-              ...u,
-              email,
-              username: await resolveUsername(
-                typeof u.username === "string" ? u.username : undefined,
-              ),
-            },
-          };
-        },
-      },
-    },
-    session: {
-      create: {
-        before: async (session) => {
-          const [u] = await db.select({ email: schema.user.email }).from(schema.user).where(eq(schema.user.id, session.userId));
-          // domain check disabled for testing — re-enable before shipping
-          if (!u) return false;
-          return;
-        },
-      },
-    },
-  },
-  socialProviders: {
-    google: {
-      clientId: process.env.GOOGLE_CLIENT_ID as string,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET as string,
-      async getUserInfo(token) {
-        if (!token.idToken) return null;
-        const profile = decodeJwt(token.idToken) as GoogleProfile;
-        if (!profile.email) return null;
-        const email = normalizeEmail(profile.email);
-        // if (!isAllowedDomain(email)) return null;
-        return {
-          user: {
-            name: profile.name ?? email,
-            email,
-            image: profile.picture,
-            emailVerified: profile.email_verified ?? false,
-          },
-          data: profile,
-        };
-      },
-    },
-  },
-  plugins: [nextCookies()],
+// Sessions come from the GDG auth service (same flow as RADAR): the browser
+// signs in with Firebase, /api/auth/session trades that ID token for GDG
+// access/refresh tokens kept in httpOnly cookies. The local `user` row still
+// holds everything showcase-specific (username, role, department…).
+
+// Accounts made before the switch keep their id (and so their projects):
+// they're matched by email, new ones take the GDG id.
+export async function upsertLocalUser(gdg: GdgUser) {
+  const email = normalizeEmail(gdg.email);
+  const [existing] = await db.select().from(user).where(eq(user.email, email));
+  if (existing) return existing;
+  const [created] = await db
+    .insert(user)
+    .values({
+      id: gdg.id,
+      email,
+      name: gdg.full_name?.trim() || email,
+      image: gdg.avatar_url ?? null,
+      emailVerified: true,
+      username: await resolveUsername(undefined),
+    })
+    .onConflictDoNothing()
+    .returning();
+  // Lost a race with a parallel first sign-in: the other request inserted it.
+  return created ?? (await db.select().from(user).where(eq(user.email, email)))[0];
+}
+
+// One /auth/me round trip per request, however many components ask.
+const sessionForToken = cache(async (token: string) => {
+  if (!AUTH_API_URL) return null;
+  try {
+    const res = await gdgFetch("/auth/me", { headers: { Authorization: `Bearer ${token}` } });
+    if (!res.ok) return null;
+    const gdg = (await res.json())?.user as GdgUser | undefined;
+    if (!gdg?.id || !gdg.email) return null;
+    return { user: await upsertLocalUser(gdg) };
+  } catch {
+    return null;
+  }
 });
+
+export type Session = NonNullable<Awaited<ReturnType<typeof sessionForToken>>>;
+
+function readCookie(headers: Headers, name: string) {
+  for (const part of (headers.get("cookie") ?? "").split(";")) {
+    const [k, ...v] = part.trim().split("=");
+    if (k === name) return decodeURIComponent(v.join("="));
+  }
+  return undefined;
+}
+
+async function getSession({ headers }: { headers: Headers }): Promise<Session | null> {
+  const token = readCookie(headers, ACCESS_COOKIE);
+  return token ? sessionForToken(token) : null;
+}
+
+type UserUpdate = Partial<Pick<typeof user.$inferInsert, "name" | "image" | "username" | "bio" | "department" | "level">>;
+
+async function updateUser({ headers, body }: { headers: Headers; body: UserUpdate }) {
+  const session = await getSession({ headers });
+  if (!session) throw new Error("Not signed in");
+  await db.update(user).set({ ...body, updatedAt: new Date() }).where(eq(user.id, session.user.id));
+}
+
+// Same surface callers used under better-auth, so they didn't need to change.
+export const auth = { api: { getSession, updateUser } };

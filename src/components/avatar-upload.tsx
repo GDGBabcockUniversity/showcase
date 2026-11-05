@@ -30,7 +30,7 @@ export function AvatarUpload({ name, image }: { name: string; image: string | nu
       setSrc(uploaded.publicUrl);
       setError(null);
       toast.success("Profile picture updated.");
-      // The nav reads the avatar from better-auth's client session store.
+      // The nav reads the avatar from the shared client session store.
       refetch();
     } catch (e) {
       const message = e instanceof Error ? e.message : "Upload failed.";
