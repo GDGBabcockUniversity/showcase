@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "prestart": "NODE_OPTIONS=--network-family-autoselection-attempt-timeout=2000 drizzle-kit migrate",
+    "prebuild": "NODE_OPTIONS=--network-family-autoselection-attempt-timeout=2000 drizzle-kit migrate",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
