@@ -1,13 +1,7 @@
 import Link from "next/link";
-import {
-  LuArrowUpRight,
-  LuInbox,
-  LuLayoutDashboard,
-  LuShieldCheck,
-  LuFlag,
-  LuTrophy,
-} from "react-icons/lu";
+import { LuArrowUpRight, LuShieldCheck } from "react-icons/lu";
 import { Nav } from "@/components/nav";
+import { ReviewNav } from "./review-nav";
 import "./review.css";
 
 export default function ReviewLayout({
@@ -36,38 +30,11 @@ export default function ReviewLayout({
                 <p className="mt-0.5 text-xs text-muted">Review workspace</p>
               </div>
             </div>
-            <p className="review-caption hidden px-3 pb-3 lg:block">
-              Workspace
-            </p>
-            <nav
-              aria-label="Review workspace"
-              className="flex gap-1 overflow-x-auto lg:flex-col"
-            >
-              <Link href="/review" className="review-side-link">
-                <LuLayoutDashboard size={17} aria-hidden />
-                <span>Overview</span>
-              </Link>
-              <Link href="/review#submissions" className="review-side-link">
-                <LuInbox size={17} aria-hidden />
-                <span>Submissions</span>
-              </Link>
-              <Link href="/review#reports" className="review-side-link">
-                <LuFlag size={17} aria-hidden />
-                <span>Reports</span>
-              </Link>
-              <Link href="/review#rankings" className="review-side-link">
-                <LuTrophy size={17} aria-hidden />
-                <span>Rankings</span>
-              </Link>
-            </nav>
+            <ReviewNav />
             <div className="mt-auto hidden border-t border-border px-3 pt-5 lg:block">
-              <p className="text-xs font-medium">A thoughtful second look.</p>
-              <p className="mt-2 text-xs leading-relaxed text-muted">
-                Help student projects put their best work forward.
-              </p>
               <Link
                 href="/"
-                className="mt-5 inline-flex min-h-10 items-center gap-2 text-xs font-medium text-muted hover:text-fg"
+                className="inline-flex min-h-10 items-center gap-2 text-xs font-medium text-muted hover:text-fg"
               >
                 View public board <LuArrowUpRight size={14} aria-hidden />
               </Link>

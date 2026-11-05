@@ -50,6 +50,7 @@ export type Project = {
   draft: boolean;
   status: ProjectStatus;
   publishedAt: Date | null;
+  reviewNote: string | null;
   openToCollaboration: boolean;
   requestedSkills: string[];
   createdAt: Date;
@@ -73,6 +74,7 @@ const projectColumns = {
   draft: project.draft,
   status: project.status,
   publishedAt: project.publishedAt,
+  reviewNote: project.reviewNote,
   openToCollaboration: project.openToCollaboration,
   requestedSkills: project.requestedSkills,
   createdAt: project.createdAt,
@@ -92,6 +94,7 @@ type ProjectRow = {
   draft: boolean;
   status: string;
   publishedAt: Date | null;
+  reviewNote: string | null;
   openToCollaboration: boolean;
   requestedSkills: string[];
   createdAt: Date;

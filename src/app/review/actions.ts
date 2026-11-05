@@ -6,7 +6,13 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { abuseFlag, project, rankingOverride } from "@/db/schema";
 import { requireRole } from "@/lib/require-role";
-import { PROJECT_STATUSES, type ProjectStatus } from "@/lib/project-status";
+import {
+  NOTE_MAX,
+  NOTE_MIN,
+  NOTE_REQUIRED,
+  PROJECT_STATUSES,
+  type ProjectStatus,
+} from "@/lib/project-status";
 import {
   cohortMonthOf,
   recomputeCohortSignalScores,
@@ -40,12 +46,19 @@ export async function reviewAbuseFlag(
 export async function setProjectStatus(
   projectId: string,
   status: string,
+  note?: string,
 ): Promise<ReviewState> {
-  await requireRole("REVIEWER");
+  const session = await requireRole("REVIEWER");
 
   if (!(PROJECT_STATUSES as readonly string[]).includes(status)) {
     return { ok: false, error: "Not a real status." };
   }
+  const needsNote = NOTE_REQUIRED.includes(status as ProjectStatus);
+  const reviewNote = needsNote ? (note ?? "").trim() : null;
+  if (reviewNote !== null && reviewNote.length < NOTE_MIN)
+    return { ok: false, error: `Tell the maker what to change (at least ${NOTE_MIN} characters).` };
+  if (reviewNote !== null && reviewNote.length > NOTE_MAX)
+    return { ok: false, error: `Keep the note under ${NOTE_MAX} characters.` };
 
   const [current] = await db
     .select({ status: project.status })
@@ -63,7 +76,13 @@ export async function setProjectStatus(
 
   await db
     .update(project)
-    .set({ status: next, ...(publishedAt ? { publishedAt } : {}) })
+    .set({
+      status: next,
+      reviewNote,
+      reviewedAt: new Date(),
+      reviewedBy: session.user.id,
+      ...(publishedAt ? { publishedAt } : {}),
+    })
     .where(eq(project.id, projectId));
 
   revalidatePath("/review");

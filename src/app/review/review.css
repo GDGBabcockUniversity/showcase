@@ -1,4 +1,7 @@
 /* A scoped, system-font workspace: quieter than the public showcase. */
+/* In the components layer so Tailwind utilities on the same element
+   (justify-start, px-4, xl:hidden…) still win. */
+@layer components {
 .review-workspace {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-optical-sizing: auto;
@@ -51,7 +54,7 @@
   background: var(--color-surface-2);
   color: var(--color-fg);
 }
-.review-side-link:first-child {
+.review-side-link[aria-current] {
   background: var(--color-surface-2);
   color: var(--color-fg);
 }
@@ -155,6 +158,14 @@
 .review-control-primary:hover {
   background: color-mix(in srgb, var(--color-fg) 85%, var(--color-bg));
 }
+.review-control-danger {
+  background: var(--review-danger);
+  color: var(--color-bg);
+  border-color: transparent;
+}
+.review-control-danger:hover {
+  background: color-mix(in srgb, var(--review-danger) 85%, var(--color-fg));
+}
 .review-workspace input:focus-visible,
 .review-workspace select:focus-visible,
 .review-workspace textarea:focus-visible {
@@ -240,4 +251,5 @@
   .review-workspace .review-panel {
     border-color: var(--color-muted);
   }
+}
 }

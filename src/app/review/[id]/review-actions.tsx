@@ -3,8 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useId, useState } from "react";
 import { toast } from "sonner";
+import { formatDistanceToNow } from "date-fns";
 import {
-  LuCheck,
   LuCircleCheck,
   LuClock3,
   LuLoaderCircle,
@@ -13,117 +13,188 @@ import {
   LuX,
 } from "react-icons/lu";
 import { demoteProject, setProjectStatus } from "@/app/review/actions";
-import { STATUS_LABEL, type ProjectStatus } from "@/lib/project-status";
+import { NOTE_MAX, NOTE_MIN, STATUS_LABEL, type ProjectStatus } from "@/lib/project-status";
 
-const decisions = [
-  {
-    status: "PUBLISHED",
-    label: "Publish project",
-    description: "Ready for the public board",
-    icon: LuCircleCheck,
-  },
-  {
-    status: "CHANGES_REQUESTED",
-    label: "Request changes",
-    description: "Give the maker another pass",
-    icon: LuMessageSquare,
-  },
-  {
-    status: "PENDING",
-    label: "Return to queue",
-    description: "Leave for a later review",
-    icon: LuClock3,
-  },
-  {
-    status: "REJECTED",
-    label: "Reject submission",
-    description: "Keep this project off the board",
-    icon: LuX,
-  },
-] as const;
+type Decision = { status: ProjectStatus; label: string; done: string };
+
+const PUBLISH: Decision = { status: "PUBLISHED", label: "Publish", done: "Published" };
+const CHANGES: Decision = { status: "CHANGES_REQUESTED", label: "Request changes", done: "Changes requested" };
+const REJECT: Decision = { status: "REJECTED", label: "Reject", done: "Rejected" };
+const REQUEUE: Decision = { status: "PENDING", label: "Move back to the queue", done: "Moved back to the queue" };
+
+export type LastDecision = {
+  reviewer: string | null;
+  reviewedAt: string;
+  note: string | null;
+};
 
 export function StatusButtons({
   projectId,
   current,
+  last,
 }: {
   projectId: string;
   current: ProjectStatus;
+  last: LastDecision | null;
 }) {
   const router = useRouter();
+  const noteId = useId();
   const [pending, setPending] = useState<ProjectStatus | null>(null);
-  const [feedback, setFeedback] = useState("");
-  const [error, setError] = useState(false);
+  // The decision whose note is being written, if any.
+  const [drafting, setDrafting] = useState<Decision | null>(null);
+  const [note, setNote] = useState("");
+  const [error, setError] = useState("");
 
-  async function set(status: ProjectStatus) {
+  async function decide(decision: Decision, withNote?: string) {
     if (pending) return;
-    setPending(status);
-    setFeedback("");
-    setError(false);
+    setPending(decision.status);
+    setError("");
     try {
-      const res = await setProjectStatus(projectId, status);
+      const res = await setProjectStatus(projectId, decision.status, withNote);
       if (res.ok) {
-        const message = `Marked ${STATUS_LABEL[status].toLowerCase()}.`;
-        toast.success(message);
-        setFeedback(message);
+        toast.success(`${decision.done}.`);
+        setDrafting(null);
+        setNote("");
         router.refresh();
       } else {
-        setError(true);
-        setFeedback(
-          res.error ?? "The decision could not be saved. Please try again.",
-        );
+        setError(res.error ?? "The decision wasn't saved. Try again.");
       }
     } catch {
-      setError(true);
-      setFeedback("Unable to save. Check your connection and try again.");
+      setError("The decision wasn't saved. Check your connection and try again.");
     } finally {
       setPending(null);
     }
   }
 
+  const busy = pending !== null;
+  const spinner = (
+    <LuLoaderCircle size={16} aria-hidden className="shrink-0 animate-spin motion-reduce:animate-none" />
+  );
+
   return (
-    <div aria-busy={pending !== null}>
-      <div className="space-y-2">
-        {decisions.map(({ status, label, description, icon: Icon }) => (
-          <button
-            key={status}
-            type="button"
-            disabled={pending !== null || status === current}
-            onClick={() => set(status)}
-            className={`review-control w-full justify-start gap-3 px-4 py-3 text-left ${status === "PUBLISHED" && current !== status ? "review-control-primary" : ""} ${status === "REJECTED" ? "review-tone-red" : ""}`}
-          >
-            {pending === status ? (
-              <LuLoaderCircle
-                size={18}
-                aria-hidden
-                className="shrink-0 animate-spin motion-reduce:animate-none"
-              />
-            ) : current === status ? (
-              <LuCheck size={18} aria-hidden className="shrink-0" />
-            ) : (
-              <Icon size={18} aria-hidden className="shrink-0" />
-            )}
-            <span className="min-w-0">
-              <span className="block text-xs font-semibold">
-                {pending === status ? "Saving decision…" : label}
-                {current === status && (
-                  <span className="ml-1.5 text-[10px] font-normal">
-                    · Current
-                  </span>
-                )}
-              </span>
-              <span className="mt-0.5 block whitespace-normal text-[11px] font-normal opacity-70">
-                {description}
-              </span>
-            </span>
-          </button>
-        ))}
-      </div>
-      {feedback && (
-        <p
-          role={error ? "alert" : "status"}
-          className={`mt-4 text-xs leading-relaxed ${error ? "review-tone-red" : "review-tone-green"}`}
+    <div aria-busy={busy}>
+      {last && (
+        <div className="mb-5 rounded-xl border border-border bg-bg px-4 py-3">
+          <p className="text-[11px] text-muted">
+            {current === "PENDING" ? "Moved back to the queue" : STATUS_LABEL[current]} by{" "}
+            <span className="font-medium text-fg">{last.reviewer ?? "a reviewer"}</span>,{" "}
+            {formatDistanceToNow(new Date(last.reviewedAt), { addSuffix: true })}
+          </p>
+          {last.note && (
+            <p className="mt-2 whitespace-pre-wrap break-words text-xs leading-relaxed">
+              {last.note}
+            </p>
+          )}
+        </div>
+      )}
+
+      {drafting ? (
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            decide(drafting, note);
+          }}
+          className="space-y-3"
         >
-          {feedback}
+          <label htmlFor={noteId} className="block text-xs font-semibold">
+            {drafting === CHANGES ? "What should the maker change?" : "Why is this being rejected?"}
+          </label>
+          <textarea
+            id={noteId}
+            autoFocus
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            required
+            minLength={NOTE_MIN}
+            maxLength={NOTE_MAX}
+            rows={5}
+            disabled={busy}
+            placeholder={
+              drafting === CHANGES
+                ? "e.g. The demo link returns a 404. Add screenshots of the dashboard."
+                : "e.g. This is a template with no changes, not original student work."
+            }
+            className="w-full resize-y rounded-xl border border-border bg-bg px-3 py-3 text-sm leading-relaxed placeholder:text-muted"
+          />
+          <p className="text-[11px] leading-relaxed text-muted">
+            The maker sees this note on their account page.
+          </p>
+          <div className="flex gap-2">
+            <button
+              type="submit"
+              disabled={busy || note.trim().length < NOTE_MIN}
+              className={`review-control flex-1 ${drafting === REJECT ? "review-control-danger" : "review-control-primary"}`}
+            >
+              {pending && spinner}
+              {drafting === CHANGES ? "Send back to maker" : "Reject project"}
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => {
+                setDrafting(null);
+                setError("");
+              }}
+              className="review-control"
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      ) : (
+        <div className="space-y-2">
+          <button
+            type="button"
+            disabled={busy || current === "PUBLISHED"}
+            onClick={() => decide(PUBLISH)}
+            className="review-control review-control-primary w-full"
+          >
+            {pending === "PUBLISHED" ? spinner : <LuCircleCheck size={16} aria-hidden />}
+            {current === "PUBLISHED" ? "Published" : PUBLISH.label}
+          </button>
+          <div className="grid gap-2">
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => {
+                setNote(current === "CHANGES_REQUESTED" ? (last?.note ?? "") : "");
+                setDrafting(CHANGES);
+              }}
+              className="review-control"
+            >
+              <LuMessageSquare size={16} aria-hidden />
+              {CHANGES.label}
+            </button>
+            <button
+              type="button"
+              disabled={busy || current === "REJECTED"}
+              onClick={() => {
+                setNote("");
+                setDrafting(REJECT);
+              }}
+              className="review-control review-tone-red"
+            >
+              <LuX size={16} aria-hidden />
+              {REJECT.label}
+            </button>
+          </div>
+          {current !== "PENDING" && (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => decide(REQUEUE)}
+              className="inline-flex min-h-10 w-full items-center justify-center gap-2 text-xs font-medium text-muted hover:text-fg disabled:opacity-50"
+            >
+              {pending === "PENDING" ? spinner : <LuClock3 size={14} aria-hidden />}
+              {REQUEUE.label}
+            </button>
+          )}
+        </div>
+      )}
+
+      {error && (
+        <p role="alert" className="review-tone-red mt-4 text-xs leading-relaxed">
+          {error}
         </p>
       )}
     </div>

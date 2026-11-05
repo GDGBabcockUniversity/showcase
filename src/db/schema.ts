@@ -109,6 +109,11 @@ export const project = pgTable("project", {
     .notNull()
     .default([]),
   publishedAt: timestamp("published_at"),
+  // The latest review decision: who made it, when, and the note shown to the
+  // maker (required for changes requested / rejected, cleared otherwise).
+  reviewNote: text("review_note"),
+  reviewedAt: timestamp("reviewed_at"),
+  reviewedBy: text("reviewed_by").references(() => user.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

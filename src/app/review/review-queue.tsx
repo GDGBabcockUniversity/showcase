@@ -35,15 +35,17 @@ export function ReviewQueue({ projects }: { projects: QueueProject[] }) {
         : b.createdAt.localeCompare(a.createdAt),
     );
   const filters = [
-    { id: "all", label: "All submissions", count: projects.length },
+    { id: "all", label: "All submissions", short: "All", count: projects.length },
     {
       id: "PENDING",
       label: "Awaiting review",
+      short: "Awaiting",
       count: projects.filter((p) => p.status === "PENDING").length,
     },
     {
       id: "CHANGES_REQUESTED",
       label: "Changes requested",
+      short: "Changes",
       count: projects.filter((p) => p.status === "CHANGES_REQUESTED").length,
     },
   ];
@@ -63,15 +65,16 @@ export function ReviewQueue({ projects }: { projects: QueueProject[] }) {
               aria-pressed={filter === f.id}
               onClick={() => setFilter(f.id)}
             >
-              {f.label}
+              <span className="sm:hidden">{f.short}</span>
+              <span className="hidden sm:inline">{f.label}</span>
               <span className="text-[10px] tabular-nums opacity-70">
                 {f.count}
               </span>
             </button>
           ))}
         </div>
-        <div className="flex flex-col gap-3 sm:flex-row">
-          <div className="relative flex-1">
+        <div className="flex gap-2 sm:gap-3">
+          <div className="relative min-w-0 flex-1">
             <LuSearch
               size={16}
               aria-hidden
@@ -81,7 +84,7 @@ export function ReviewQueue({ projects }: { projects: QueueProject[] }) {
               aria-label="Search submissions"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search projects, makers, departments…"
+              placeholder="Search title, maker, department"
               className="h-11 w-full rounded-xl border border-border bg-bg pl-10 pr-10 text-sm placeholder:text-muted"
             />
             {query && (
@@ -99,10 +102,10 @@ export function ReviewQueue({ projects }: { projects: QueueProject[] }) {
             aria-label="Sort submissions"
             value={sort}
             onChange={(e) => setSort(e.target.value)}
-            className="h-11 rounded-xl border border-border bg-bg px-3 text-xs font-medium text-muted"
+            className="h-11 shrink-0 rounded-xl border border-border bg-bg px-3 text-xs font-medium text-muted"
           >
-            <option value="oldest">Oldest first</option>
-            <option value="newest">Newest first</option>
+            <option value="oldest">Oldest</option>
+            <option value="newest">Newest</option>
           </select>
         </div>
       </div>

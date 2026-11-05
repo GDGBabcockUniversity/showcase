@@ -4,10 +4,10 @@ import {
   LuArrowLeft,
   LuArrowUpRight,
   LuChartNoAxesColumnIncreasing,
-  LuCheck,
   LuShieldCheck,
   LuShieldAlert,
 } from "react-icons/lu";
+import { alias } from "drizzle-orm/pg-core";
 import { ReviewSection, StatusBadge } from "../review-ui";
 import { ReviewSubmitButton } from "../report-actions";
 import { isVideoUrl } from "@/lib/limits";
@@ -26,6 +26,8 @@ export const metadata: Metadata = {
   title: "Review project — GDG Babcock Showcase",
 };
 
+const reviewer = alias(user, "reviewer");
+
 async function getReviewTarget(id: string) {
   const [row] = await db
     .select({
@@ -38,9 +40,13 @@ async function getReviewTarget(id: string) {
       department: project.department,
       status: project.status,
       by: user.name,
+      reviewNote: project.reviewNote,
+      reviewedAt: project.reviewedAt,
+      reviewer: reviewer.name,
     })
     .from(project)
     .innerJoin(user, eq(project.userId, user.id))
+    .leftJoin(reviewer, eq(project.reviewedBy, reviewer.id))
     .where(eq(project.id, id));
   return row;
 }
@@ -95,6 +101,7 @@ export default async function ReviewProjectPage({
   const maxHour = Math.max(1, ...histogram.map((h) => h.count));
 
   const openFlags = flags.filter((f) => !f.reviewed).length;
+  const contributors = makers.filter((m) => !m.owner).length;
   const liveUrl = /^https?:\/\//i.test(target.url) ? target.url : null;
 
   return (
@@ -106,33 +113,27 @@ export default async function ReviewProjectPage({
         <LuArrowLeft size={15} aria-hidden />
         All submissions
       </Link>
-      <header className="flex flex-col justify-between gap-5 sm:flex-row sm:items-start">
+      <header className="min-w-0">
+        <div className="mb-3">
+          <StatusBadge status={target.status as ProjectStatus} />
+        </div>
         <div className="min-w-0">
-          <p className="review-caption mb-3">Project review</p>
           <h1 className="break-words text-3xl font-semibold tracking-[-0.035em] sm:text-4xl">
             {target.title}
           </h1>
           <p className="mt-3 text-sm text-muted">
-            Submitted by{" "}
-            <span className="font-medium text-fg">{target.by}</span>
+            by <span className="font-medium text-fg">{target.by}</span>
+            {contributors > 0 &&
+              ` and ${contributors} contributor${contributors === 1 ? "" : "s"}`}
+            {target.department && <>, {target.department}</>}
           </p>
-          <p className="mt-1 text-xs text-muted">
-            {target.department ?? "Department not specified"} ·{" "}
-            {makers.filter((m) => !m.owner).length} contributor
-            {makers.filter((m) => !m.owner).length === 1 ? "" : "s"}
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <StatusBadge status={target.status as ProjectStatus} />
-          <a href="#decision-heading" className="review-control xl:hidden">
-            Review decision
-          </a>
         </div>
       </header>
 
-      <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_300px]">
-        <div className="min-w-0 space-y-6">
-          <section aria-label="Project preview" className="review-panel">
+      {/* Source order is the phone order: preview, decision, evidence. On
+          desktop the decision moves to a sticky right column. */}
+      <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
+          <section aria-label="Project preview" className="review-panel min-w-0 xl:col-start-1">
             {target.cover && (
               <div className="aspect-[16/8] overflow-hidden border-b border-border bg-surface-2">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -202,9 +203,71 @@ export default async function ReviewProjectPage({
             )}
           </section>
 
+        <aside className="space-y-4 xl:sticky xl:top-24 xl:col-start-2 xl:row-span-2 xl:row-start-1">
+          <section
+            className="review-panel review-material p-5 sm:p-6"
+            aria-labelledby="decision-heading"
+          >
+            <h2
+              id="decision-heading"
+              className="mb-4 scroll-mt-28 text-base font-semibold tracking-tight"
+            >
+              Decision
+            </h2>
+            <StatusButtons
+              projectId={target.id}
+              current={target.status as ProjectStatus}
+              last={
+                target.reviewedAt
+                  ? {
+                      reviewer: target.reviewer,
+                      reviewedAt: target.reviewedAt.toISOString(),
+                      note: target.reviewNote,
+                    }
+                  : null
+              }
+            />
+            {target.status !== "PUBLISHED" && (
+              <p className="mt-4 text-[11px] leading-relaxed text-muted">
+                Publishing puts the project on the public board straight away.
+              </p>
+            )}
+          </section>
+          {role === "ADMIN" && (
+            <details className="review-panel group">
+              <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 text-xs font-medium">
+                <span className="inline-flex items-center gap-2">
+                  <LuShieldAlert
+                    size={16}
+                    aria-hidden
+                    className="review-tone-red"
+                  />
+                  Ranking override
+                </span>
+                <span aria-hidden className="text-muted group-open:hidden">
+                  +
+                </span>
+                <span
+                  aria-hidden
+                  className="hidden text-muted group-open:inline"
+                >
+                  −
+                </span>
+              </summary>
+              <div className="border-t border-border p-5">
+                <p className="mb-4 text-xs leading-relaxed text-muted">
+                  Remove this project from this month’s top three after
+                  verifying coordinated activity. Every override is logged.
+                </p>
+                <DemoteForm projectId={target.id} />
+              </div>
+            </details>
+          )}
+        </aside>
+
+        <div className="min-w-0 space-y-6 xl:col-start-1">
           <ReviewSection
             title="Project analytics"
-            description="A snapshot of the attention this project has earned."
             accessory={
               <LuChartNoAxesColumnIncreasing
                 size={18}
@@ -213,12 +276,12 @@ export default async function ReviewProjectPage({
               />
             }
           >
-            <dl className="grid grid-cols-2 border-t border-border sm:grid-cols-5">
+            <dl className="grid grid-cols-3 border-t border-border sm:grid-cols-5">
               {["Views", "Demo clicks", "Likes", "Comments", "Saves"].map(
                 (label, i) => (
                   <div
                     key={label}
-                    className={`px-5 py-5 ${i === 4 ? "col-span-2 sm:col-span-1" : ""}`}
+                    className="px-5 py-4 sm:py-5"
                   >
                     <dt className="text-xs text-muted">{label}</dt>
                     <dd className="mt-2 text-2xl font-semibold tracking-tight tabular-nums">
@@ -380,63 +443,6 @@ export default async function ReviewProjectPage({
           </ReviewSection>
         </div>
 
-        <aside className="space-y-4 xl:sticky xl:top-24">
-          <section
-            className="review-panel review-material p-5 sm:p-6"
-            aria-labelledby="decision-heading"
-          >
-            <span className="review-tone-blue mb-4 inline-flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-bg">
-              <LuCheck size={20} aria-hidden />
-            </span>
-            <h2
-              id="decision-heading"
-              className="scroll-mt-28 text-base font-semibold tracking-tight"
-            >
-              Review decision
-            </h2>
-            <p className="mb-5 mt-2 text-xs leading-relaxed text-muted">
-              Check the project and its activity, then choose what happens next.
-            </p>
-            <StatusButtons
-              projectId={target.id}
-              current={target.status as ProjectStatus}
-            />
-            <p className="mt-5 border-t border-border pt-4 text-[11px] leading-relaxed text-muted">
-              Publishing makes this project visible on the public board
-              immediately.
-            </p>
-          </section>
-          {role === "ADMIN" && (
-            <details className="review-panel group">
-              <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 text-xs font-medium">
-                <span className="inline-flex items-center gap-2">
-                  <LuShieldAlert
-                    size={16}
-                    aria-hidden
-                    className="review-tone-red"
-                  />
-                  Ranking override
-                </span>
-                <span aria-hidden className="text-muted group-open:hidden">
-                  +
-                </span>
-                <span
-                  aria-hidden
-                  className="hidden text-muted group-open:inline"
-                >
-                  −
-                </span>
-              </summary>
-              <div className="border-t border-border p-5">
-                <p className="mb-4 text-xs leading-relaxed text-muted">
-                  Remove this project from this month’s top three after
-                  verifying coordinated activity. Every override is logged.
-                </p>
-                <DemoteForm projectId={target.id} />
-              </div>
-            </details>
-          )}
-        </aside>
       </div>
     </div>
   );

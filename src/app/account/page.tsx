@@ -367,6 +367,13 @@ function InReviewList({ projects }: { projects: Project[] }) {
                 {STATUS_LABEL[p.status as ProjectStatus]}
               </span>
             </Link>
+            {/* Only decisions that need the maker to act carry a note. */}
+            {p.reviewNote && (
+              <p className="mt-2 whitespace-pre-wrap break-words rounded-xl bg-bg/60 px-3 py-2 text-xs leading-relaxed text-muted">
+                <span className="font-medium text-fg">Reviewer note: </span>
+                {p.reviewNote}
+              </p>
+            )}
           </li>
         ))}
       </ul>
