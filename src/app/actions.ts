@@ -171,8 +171,8 @@ export async function searchUsers(
 
 export type ProfileState = { ok: boolean; error?: string };
 
-// Profile edits go through better-auth rather than a direct db write, so the
-// session it hands back afterwards reflects the new values.
+// Profile edits go through auth.api.updateUser (src/lib/auth.ts), which
+// writes the local user row for whoever holds the current session.
 // The bytes go straight from the browser to object storage; this only records
 // the URL that came back, and only one we actually issued.
 export async function updateAvatar(url: string): Promise<ProfileState> {
