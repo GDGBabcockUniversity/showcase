@@ -6,7 +6,7 @@ Submissions are reviewed before they appear publicly. Published projects are ran
 
 ## What it includes
 
-- Email/password and Google sign-in through Better Auth
+- Email/password and Google sign-in with GDG Babcock accounts (the shared GDG auth service, as in RADAR)
 - Public project board, search, filters, archive, profiles, and bookmarks
 - Project submission with UploadThing-powered cover and media uploads
 - Reviewer queue for approving projects, requesting changes, moderating comments, and handling suspicious activity
@@ -17,7 +17,7 @@ Submissions are reviewed before they appear publicly. Published projects are ran
 
 - Next.js 16, React 19, TypeScript, and Tailwind CSS 4
 - PostgreSQL with Drizzle ORM and Drizzle Kit migrations
-- Better Auth for authentication
+- Firebase Authentication plus the GDG auth service (`gdg/auth-v2`), with Upstash QStash for profile sync
 - UploadThing for file uploads
 - Vercel Cron for scheduled signal scoring
 
@@ -27,7 +27,7 @@ Submissions are reviewed before they appear publicly. Published projects are ran
 - npm
 - A PostgreSQL database
 - An [UploadThing](https://uploadthing.com/) app and token for media uploads
-- Optional: Google OAuth credentials for Google sign-in
+- Access to the GDG auth service (`AUTH_API_URL`) and the GDG Babcock Firebase web app config
 
 ## Local setup
 
@@ -51,8 +51,13 @@ Submissions are reviewed before they appear publicly. Published projects are ran
    DATABASE_URL=postgresql://user:password@localhost:5432/showcase
    BETTER_AUTH_SECRET=replace-with-a-random-secret
    BETTER_AUTH_URL=http://localhost:3000
-   GOOGLE_CLIENT_ID=
-   GOOGLE_CLIENT_SECRET=
+   AUTH_API_URL=http://localhost:8080
+   NEXT_PUBLIC_FIREBASE_API_KEY=
+   NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=
+   NEXT_PUBLIC_FIREBASE_PROJECT_ID=
+   NEXT_PUBLIC_FIREBASE_APP_ID=
+   QSTASH_CURRENT_SIGNING_KEY=
+   QSTASH_NEXT_SIGNING_KEY=
    UPLOADTHING_TOKEN=replace-with-your-uploadthing-v7-token
    CRON_SECRET=replace-with-a-random-secret
    ```
@@ -63,7 +68,7 @@ Submissions are reviewed before they appear publicly. Published projects are ran
    openssl rand -base64 32
    ```
 
-   If you enable Google sign-in, add `http://localhost:3000/api/auth/callback/google` as an authorized redirect URI in Google Cloud Console. `UPLOADTHING_TOKEN` is required for avatar and project-media uploads.
+   `BETTER_AUTH_SECRET` now only salts anonymous visitor hashes, and `BETTER_AUTH_URL` is the site origin for the storage CORS script; the names are kept so existing environments keep working. Copy the auth and Firebase values from RADAR's environment, and add `localhost` to the Firebase project's authorized domains. `UPLOADTHING_TOKEN` is required for avatar and project-media uploads.
 
 4. Create the database schema from the committed migrations.
 
@@ -105,8 +110,8 @@ The first script creates the base data; the second can be rerun to add more inte
 | Command | Purpose |
 | --- | --- |
 | `npm run dev` | Start the development server. |
-| `npm run build` | Create a production build. |
-| `npm run start` | Apply migrations, then run the production server. |
+| `npm run build` | Apply migrations, then create a production build. |
+| `npm run start` | Run the production server. |
 | `npm run lint` | Run ESLint. |
 | `npm run db:push` | Push the current Drizzle schema directly to a development database. |
 | `npm run db:studio` | Open Drizzle Studio. |
@@ -152,11 +157,12 @@ Only the first eligible top-level comment from a person counts toward that proje
 
 ## Deployment
 
-The app is configured for Vercel. Add every variable from `.env.example` to the target Vercel environment, use a production `BETTER_AUTH_URL`, and add the corresponding production Google OAuth callback URL:
+The app is configured for Vercel. Add every variable from `.env.example` to the target Vercel environment and use a production `BETTER_AUTH_URL`. `NEXT_PUBLIC_FIREBASE_*` values are baked in at build time, so redeploy after changing them. Two one-off steps outside this repo:
 
-```text
-https://your-domain.com/api/auth/callback/google
-```
+- Add the production domain to the Firebase project's authorized domains.
+- In Upstash, add `https://your-domain.com/api/worker/auth-user` to auth-v2's `user.upsert` URL group so profile changes sync.
+
+Migrations run during `npm run build`, so every build (previews included) needs a reachable `DATABASE_URL`.
 
 `vercel.json` schedules `GET /api/cron/signal-scores` daily at 12:00 UTC. Vercel invokes it with `Authorization: Bearer <CRON_SECRET>`; keep `CRON_SECRET` set and private in every deployed environment.
 

@@ -42,7 +42,7 @@ For the people who use these features and what they need from them, see [user-st
 
 Access is enforced in three places:
 
-- `src/proxy.ts` redirects signed-out requests for `/submit` and `/account` to `/?authModal=1&redirect=<path>`, which opens the sign-in modal.
+- `src/proxy.ts` redirects signed-out requests for `/submit` and `/account` (and their subpages) to `/?authModal=1&redirect=<path>`, which opens the sign-in modal. It also refreshes an expired access token on every request (see [Accounts and authentication](#2-accounts-and-authentication)).
 - `requireRole()` in `src/lib/require-role.ts` gates review pages and actions. ADMIN satisfies a REVIEWER check.
 - Every server action re-checks the session and, where relevant, ownership. For example, the `where` clause on project updates includes the owner's id, so editing another person's project changes nothing.
 
@@ -50,15 +50,19 @@ There is no self-serve route to become a REVIEWER or ADMIN.
 
 ## 2. Accounts and authentication
 
-Built on Better Auth (`src/lib/auth.ts`).
+Accounts are GDG Babcock accounts, issued by the shared GDG auth service (`gdg/auth-v2`), the same way RADAR signs people in.
 
-- **Email and password** sign-up and sign-in.
-- **Google sign-in** (OAuth), if `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are set.
+- **Flow:** the browser signs in with Firebase (`src/lib/firebase-auth.ts`), then `POST /api/auth/session` trades the Firebase ID token for GDG access and refresh tokens at the auth service's `/auth/login`. Both tokens are kept in httpOnly cookies (`gdg_token`, `gdg_refresh_token`), and Firebase's own session is signed out straight away.
+- **Methods:** email and password, and Google (Firebase popup). Both need the `NEXT_PUBLIC_FIREBASE_*` config and `AUTH_API_URL`.
+- **Session checks:** `auth.api.getSession` (`src/lib/auth.ts`) validates the access token against `/auth/me`, once per request. The access token lasts about 15 minutes; when it lapses, `src/proxy.ts` swaps the refresh token at `/auth/refresh` before the page renders. An invalid refresh token is cleared.
+- **Sign-out:** `DELETE /api/auth/session` clears both cookies and revokes the refresh token at `/auth/logout`.
+- **Local user row:** the auth service only proves identity. Showcase keeps its own `user` row for username, role, department, level, bio and avatar. On first sign-in the row is matched by (normalised) email, so accounts from before the switch keep their id, projects and role; brand-new users get the GDG user id.
+- **Profile sync:** auth-v2 publishes a `user.upsert` event to QStash on each login. `POST /api/worker/auth-user` verifies the QStash signature (`QSTASH_CURRENT_SIGNING_KEY`, `QSTASH_NEXT_SIGNING_KEY`) and updates that user's name and avatar. The newest edit wins, so a stale or retried event never undoes a later change made on `/account`.
 - **Email normalisation:** emails are lowercased and plus-addressing is stripped (`a+1@x` becomes `a@x`), so one mailbox can't back several accounts.
-- **Automatic username:** a username is generated at sign-up from the requested handle or a fallback, and collisions are resolved (`resolveUsername`).
-- **Sign-up fields:** name, email, password, plus optional department and level. Google sign-ups skip that form, so their department and level start empty.
-- **Auth modal:** sign-in and sign-up open in a modal (`auth-modal.tsx`), triggered from the nav or by redirect. After sign-in, the user returns to the `redirect` path.
-- **Domain restriction (currently off):** `isAllowedDomain` limits accounts to `babcock.edu.ng`, but the check is commented out "for testing". See [Known gaps](#known-gaps).
+- **Automatic username:** every new account gets a placeholder username (`member-xxxxxx`), with collisions resolved (`resolveUsername`). It can be changed on `/account`.
+- **Sign-up fields:** full name, email and password (at least 12 characters). Department and level are set later on `/account`.
+- **Auth modal:** sign-in and sign-up open in a modal (`auth-modal.tsx`), laid out like RADAR's: Google first, then the email form. It opens from the nav or by redirect, and after sign-in the user returns to the `redirect` path.
+- **Domain restriction (currently off):** `isAllowedDomain` in `src/lib/email.ts` limits accounts to `babcock.edu.ng`, but nothing calls it. See [Known gaps](#known-gaps).
 
 ## 3. Profiles
 
@@ -73,7 +77,7 @@ Built on Better Auth (`src/lib/auth.ts`).
 
 - Fields: name (2–80 characters), username (slugified, at least 3 characters, unique), bio (up to 200 characters), department, and level (validated against fixed lists).
 - **Avatar upload:** PNG, JPEG, or WebP up to 2 MB, uploaded straight to object storage.
-- Changes go through `auth.api.updateUser`, so the session reflects them straight away.
+- Changes go through `auth.api.updateUser`, which writes the local `user` row, so the session reflects them straight away. Name and avatar can also be updated by the GDG profile sync; whichever edit is newer wins.
 
 ## 4. The board (home)
 
@@ -346,8 +350,10 @@ These are places where the schema, README, or comments suggest a capability that
 | Gap | Detail |
 | --- | --- |
 | **No UI to hide comments** | The `hidden_comment` table exists, and scoring and display both respect it. However, no action or button creates a hidden-comment row, so moderating a comment currently means a manual database insert. The README lists comment moderation as a reviewer feature. |
-| **School email restriction disabled** | The `babcock.edu.ng` domain check in `src/lib/auth.ts` is commented out, with a note to re-enable it before shipping. |
-| **Email verification not enforced** | `emailVerified` is stored, but nothing is gated on it. |
+| **School email restriction disabled** | `isAllowedDomain` in `src/lib/email.ts` checks for `babcock.edu.ng`, but no sign-in path calls it. |
+| **Email verification not enforced** | New accounts are stored with `emailVerified` set, and nothing is gated on it. |
+| **Profile sync skips older accounts** | Accounts created before the switch to GDG auth keep their old id, while `user.upsert` events carry the GDG id, so their name and avatar don't sync. They still sign in normally. |
+| **Unused auth tables** | The better-auth `session`, `account` and `verification` tables are still in the schema but are no longer used. |
 | **No way to accept a collaboration request** | Owners can only close or report a request. Accepting doesn't add the sender as a contributor, so the owner has to add them by editing the project. |
 | **No notifications** | Makers aren't notified about status changes, comments, or collaboration requests. They have to check `/account`. |
 | **Roles granted by hand** | There is no admin UI to promote or demote users. |

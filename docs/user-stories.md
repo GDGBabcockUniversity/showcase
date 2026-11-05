@@ -29,7 +29,8 @@ User stories for GDG Babcock Showcase, grouped by epic. Each story has an ID, a 
 ### US-1.1 Sign up with email ✅
 **As a** student, **I want to** create an account with my email and a password **so that** I can submit projects and take part.
 
-- [ ] The sign-up form asks for name, email, and password, with department and level optional.
+- [ ] The sign-up form asks for full name, email, and password (at least 12 characters); department and level are set later on `/account`.
+- [ ] The account is a GDG Babcock account, so the same login works on RADAR.
 - [ ] Emails are lowercased and stripped of `+tags` before they're saved; a second account for the same mailbox is rejected.
 - [ ] A unique username is generated automatically.
 - [ ] After sign-up, I'm signed in and returned to the page I came from.
@@ -37,8 +38,8 @@ User stories for GDG Babcock Showcase, grouped by epic. Each story has an ID, a 
 ### US-1.2 Sign in with Google ✅
 **As a** student, **I want to** sign in with my Google account **so that** I don't have to manage another password.
 
-- [ ] A "Continue with Google" option appears in the auth modal when Google is configured.
-- [ ] My name, email, and avatar come from Google.
+- [ ] "Continue with Google" is the first option in the auth modal.
+- [ ] My name and email come from my GDG account, and later changes to my GDG name or avatar sync to Showcase.
 - [ ] I'm returned to the page I was trying to reach.
 
 ### US-1.3 Prompted to sign in for protected pages ✅
@@ -54,7 +55,7 @@ User stories for GDG Babcock Showcase, grouped by epic. Each story has an ID, a 
 - [ ] Google sign-in with another domain is rejected.
 - [ ] Existing sessions for accounts outside the domain stop working.
 
-> The check exists in `src/lib/auth.ts` but is commented out.
+> `isAllowedDomain` exists in `src/lib/email.ts` but nothing calls it.
 
 ### US-1.5 Verify my email 📋
 **As an** organiser, **I want** new accounts to verify their email before submitting **so that** throwaway accounts can't flood the queue or inflate signal.
