@@ -1,8 +1,13 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { ACCESS_COOKIE, REFRESH_COOKIE, gdgFetch, setAuthCookies, AUTH_API_URL } from "@/lib/gdg-auth";
+import { rateLimit } from "@/lib/rate-limit";
 
 const GATED = ["/submit", "/account"];
+
+function clientIp(request: NextRequest) {
+  return request.headers.get("x-forwarded-for")?.split(",")[0].trim() || request.headers.get("x-real-ip") || "unknown";
+}
 
 // The GDG access token lives ~15 minutes. When it has lapsed but the refresh
 // token hasn't, swap it here so every page, action and route sees a session.
@@ -20,6 +25,13 @@ async function refreshTokens(request: NextRequest) {
 }
 
 export async function proxy(request: NextRequest) {
+  const limit = await rateLimit(clientIp(request));
+  if (!limit.ok)
+    return NextResponse.json(
+      { error: "Too many requests" },
+      { status: 429, headers: { "Retry-After": String(limit.retryAfterSec) } },
+    );
+
   let response: NextResponse | null = null;
 
   if (!request.cookies.has(ACCESS_COOKIE)) {
