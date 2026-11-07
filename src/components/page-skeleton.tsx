@@ -44,9 +44,15 @@ export function FormSkeleton({ fields = 5 }: { fields?: number }) {
 
 // Wraps whatever shape a route needs in the same main container the real page
 // uses, so nothing jumps when the content swaps in.
-export function SkeletonMain({ children }: { children: React.ReactNode }) {
+export function SkeletonMain({
+  children,
+  width = "max-w-7xl",
+}: {
+  children: React.ReactNode;
+  width?: string;
+}) {
   return (
-    <main className="mx-auto w-full max-w-7xl px-5 py-8 sm:py-10" aria-busy>
+    <main className={`mx-auto w-full ${width} px-5 py-8 sm:py-10`} aria-busy>
       <span className="sr-only">Loading…</span>
       {children}
     </main>

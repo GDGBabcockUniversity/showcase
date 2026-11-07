@@ -28,6 +28,7 @@ export async function Nav() {
             width={36}
             height={36}
             priority
+            quality={100}
             className="h-9 w-9 shrink-0 rounded-[10px]"
           />
           <span className="min-w-0">
