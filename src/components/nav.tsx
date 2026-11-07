@@ -23,7 +23,8 @@ export async function Nav() {
       <nav className="mx-auto flex min-h-[4.5rem] max-w-7xl flex-nowrap items-center justify-between gap-x-4 px-5 py-0">
         <Link href="/" className="flex min-w-0 items-center gap-3">
           <Image
-            src="/logo.png"
+            src="/logo.svg"
+            unoptimized
             alt=""
             width={36}
             height={36}
