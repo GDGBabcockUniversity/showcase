@@ -40,3 +40,27 @@ export function ReviewSection({
     </section>
   );
 }
+
+export function PageHeader({
+  title,
+  description,
+  accessory,
+}: {
+  title: string;
+  description: string;
+  accessory?: ReactNode;
+}) {
+  return (
+    <header className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
+      <div>
+        <h1 className="text-3xl font-semibold tracking-[-0.035em] sm:text-4xl">
+          {title}
+        </h1>
+        <p className="mt-2 max-w-xl text-sm leading-relaxed text-muted">
+          {description}
+        </p>
+      </div>
+      {accessory}
+    </header>
+  );
+}

@@ -39,7 +39,7 @@ export async function reviewAbuseFlag(
   if (flag.publishedAt) {
     await recomputeCohortSignalScores(cohortMonthOf(flag.publishedAt));
   }
-  revalidatePath("/review");
+  revalidatePath("/review", "layout");
   revalidatePath("/", "layout");
 }
 
@@ -85,7 +85,7 @@ export async function setProjectStatus(
     })
     .where(eq(project.id, projectId));
 
-  revalidatePath("/review");
+  revalidatePath("/review", "layout");
   revalidatePath("/", "layout");
   return { ok: true };
 }
@@ -112,7 +112,7 @@ export async function demoteProject(
     actedBy: session.user.id,
   });
 
-  revalidatePath("/review");
+  revalidatePath("/review", "layout");
   revalidatePath("/this-month");
   return { ok: true };
 }

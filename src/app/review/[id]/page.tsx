@@ -107,7 +107,7 @@ export default async function ReviewProjectPage({
   return (
     <div className="space-y-7">
       <Link
-        href="/review"
+        href="/review/submissions"
         className="inline-flex min-h-10 items-center gap-2 text-xs font-medium text-muted hover:text-fg"
       >
         <LuArrowLeft size={15} aria-hidden />
