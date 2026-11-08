@@ -4,7 +4,7 @@ export default function Loading() {
   return (
     <SkeletonMain>
       <HeaderSkeleton />
-      <RowsSkeleton rows={6} />
+      <RowsSkeleton rows={6} className="mt-6" />
     </SkeletonMain>
   );
 }
