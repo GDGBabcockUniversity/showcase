@@ -22,7 +22,6 @@ import {
   type ProjectType,
 } from "@/lib/departments";
 import { TAGS, TAG_LABEL, type Tag } from "@/lib/tags";
-import { ENGAGEMENT_WEIGHTS } from "@/lib/signal-scores";
 import { FEED_BUCKETS, FEED_WINDOW_DAYS, feedBucket } from "@/lib/when";
 import { LuChevronDown } from "react-icons/lu";
 
@@ -247,7 +246,7 @@ export default async function Home({
 
           {/* Sidebar */}
           <aside className="flex flex-col gap-5">
-            <div id="signal-model" className="rounded-2xl border border-border bg-surface p-5">
+            <div className="rounded-2xl border border-border bg-surface p-5">
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="eyebrow">Trending</p>
@@ -279,26 +278,6 @@ export default async function Home({
                   </li>
                 ))}
               </ol>
-            </div>
-
-            <div className="rounded-2xl border border-border bg-surface p-5">
-              <p className="eyebrow">How ranking works</p>
-              <p className="mt-3 text-sm leading-relaxed text-muted">
-                Every interaction pays a different rate. Clicks pay most —
-                someone opened the link.
-              </p>
-              <div className="mt-4 grid grid-cols-4 gap-2 border-t border-border pt-3">
-                {Object.entries(ENGAGEMENT_WEIGHTS).map(([label, weight]) => (
-                  <div key={label}>
-                    <p className="font-mono text-[10px] uppercase tracking-wider text-muted">
-                      {label}
-                    </p>
-                    <p className="mt-1 font-mono text-xs font-semibold">
-                      {Math.round(weight * 100)}%
-                    </p>
-                  </div>
-                ))}
-              </div>
             </div>
 
             <div className="rounded-2xl border border-blue/25 bg-blue/5 p-5">

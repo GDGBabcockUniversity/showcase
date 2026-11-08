@@ -41,9 +41,6 @@ export function Footer() {
             <Link href="/this-month" className="hover:text-fg py-1 md:py-0">
               This Month
             </Link>
-            <Link href="/signal-model" className="hover:text-fg py-1 md:py-0">
-              Signal model
-            </Link>
           </div>
 
           {/* Social Icons */}
