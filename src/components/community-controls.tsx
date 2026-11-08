@@ -1,6 +1,9 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import { FaFacebookF, FaLinkedinIn, FaWhatsapp, FaXTwitter } from "react-icons/fa6";
+import { LuLink } from "react-icons/lu";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   requestCollaboration,
   type CollaborationRequestState,
@@ -8,22 +11,80 @@ import {
 
 export function ShareLink({ url, title }: { url: string; title: string }) {
   const [copied, setCopied] = useState(false);
+  const [open, setOpen] = useState(false);
+  const absolute = () => new URL(url, window.location.origin).href;
+
+  async function copy() {
+    const href = absolute();
+    try {
+      await navigator.clipboard.writeText(href);
+      setCopied(true);
+    } catch {
+      window.prompt("Copy this link", href);
+    }
+  }
+
+  // Resolved at click time, so it only runs in the browser.
+  function networks() {
+    const u = encodeURIComponent(absolute());
+    const t = encodeURIComponent(document.title);
+    return [
+      { name: "X", Icon: FaXTwitter, href: `https://twitter.com/intent/tweet?url=${u}&text=${t}` },
+      { name: "LinkedIn", Icon: FaLinkedinIn, href: `https://www.linkedin.com/sharing/share-offsite/?url=${u}` },
+      { name: "Facebook", Icon: FaFacebookF, href: `https://www.facebook.com/sharer/sharer.php?u=${u}` },
+      { name: "WhatsApp", Icon: FaWhatsapp, href: `https://wa.me/?text=${t}%20${u}` },
+    ];
+  }
+
   return (
-    <div className="flex items-center gap-3">
-      <button
-        type="button"
-        aria-label={copied ? "Project link copied" : `Share ${title}`}
-        onClick={async () => {
-          await navigator.clipboard.writeText(
-            new URL(url, window.location.origin).href,
-          );
-          setCopied(true);
-        }}
-        className="rounded-full border border-border px-4 py-2 text-xs hover:border-blue"
-      >
-        {copied ? "Link copied" : `Share ${title}`}
-      </button>
-    </div>
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          aria-label={copied ? "Project link copied" : `Share ${title}`}
+          onClick={async (e) => {
+            // iOS, Android and some desktop browsers have a native share sheet;
+            // everything else gets the popover below.
+            if (!navigator.share) return;
+            e.preventDefault();
+            try {
+              await navigator.share({ title: document.title, url: absolute() });
+            } catch {
+              // dismissed by the user, nothing to do
+            }
+          }}
+          className="rounded-full border border-border px-4 py-2 text-xs hover:border-blue"
+        >
+          {copied ? "Link copied" : `Share ${title}`}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-52 p-1.5">
+        {networks().map(({ name, Icon, href }) => (
+          <a
+            key={name}
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={() => setOpen(false)}
+            className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm hover:bg-surface"
+          >
+            <Icon size={14} aria-hidden />
+            {name}
+          </a>
+        ))}
+        <button
+          type="button"
+          onClick={() => {
+            copy();
+            setOpen(false);
+          }}
+          className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm hover:bg-surface"
+        >
+          <LuLink size={14} aria-hidden />
+          Copy link
+        </button>
+      </PopoverContent>
+    </Popover>
   );
 }
 
