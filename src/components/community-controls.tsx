@@ -8,6 +8,9 @@ import {
   requestCollaboration,
   type CollaborationRequestState,
 } from "@/app/community-actions";
+import { Button } from "./ui/button";
+import Link from "next/link";
+import { Textarea } from "./ui/textarea";
 
 export function ShareLink({ url, title }: { url: string; title: string }) {
   const [copied, setCopied] = useState(false);
@@ -39,7 +42,7 @@ export function ShareLink({ url, title }: { url: string; title: string }) {
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <button
+        <Button
           type="button"
           aria-label={copied ? "Project link copied" : `Share ${title}`}
           onClick={async (e) => {
@@ -56,11 +59,11 @@ export function ShareLink({ url, title }: { url: string; title: string }) {
           className="rounded-full border border-border px-4 py-2 text-xs hover:border-blue"
         >
           {copied ? "Link copied" : `Share ${title}`}
-        </button>
+        </Button>
       </PopoverTrigger>
       <PopoverContent className="w-52 p-1.5">
         {networks().map(({ name, Icon, href }) => (
-          <a
+          <Link
             key={name}
             href={href}
             target="_blank"
@@ -70,9 +73,9 @@ export function ShareLink({ url, title }: { url: string; title: string }) {
           >
             <Icon size={14} aria-hidden />
             {name}
-          </a>
+          </Link>
         ))}
-        <button
+        <Button
           type="button"
           onClick={() => {
             copy();
@@ -82,7 +85,7 @@ export function ShareLink({ url, title }: { url: string; title: string }) {
         >
           <LuLink size={14} aria-hidden />
           Copy link
-        </button>
+        </Button>
       </PopoverContent>
     </Popover>
   );
@@ -115,7 +118,7 @@ export function CollaborationForm({ projectId }: { projectId: string }) {
           >
             Your message
           </label>
-          <textarea
+          <Textarea
             id="collab-message"
             name="message"
             required
@@ -130,13 +133,13 @@ export function CollaborationForm({ projectId }: { projectId: string }) {
             <p id="collab-hint" className="text-[11px] text-muted">
               10–1,000 characters
             </p>
-            <button
+            <Button
               type="submit"
               disabled={pending}
               className="inline-flex min-h-10 items-center justify-center rounded-full bg-green px-4 text-xs font-semibold text-bg transition-opacity hover:opacity-90 disabled:cursor-wait disabled:opacity-60"
             >
               {pending ? "Sending…" : "Send collaboration request"}
-            </button>
+            </Button>
           </div>
           <p
             id="collab-feedback"
