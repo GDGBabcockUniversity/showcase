@@ -2,7 +2,7 @@
 
 import { useActionState, useState } from "react";
 import { FaFacebookF, FaLinkedinIn, FaWhatsapp, FaXTwitter } from "react-icons/fa6";
-import { LuLink } from "react-icons/lu";
+import { LuCheck, LuLink, LuShare2 } from "react-icons/lu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   requestCollaboration,
@@ -12,7 +12,15 @@ import { Button } from "./ui/button";
 import Link from "next/link";
 import { Textarea } from "./ui/textarea";
 
-export function ShareLink({ url, title }: { url: string; title: string }) {
+export function ShareLink({
+  url,
+  title,
+  compact = false,
+}: {
+  url: string;
+  title: string;
+  compact?: boolean;
+}) {
   const [copied, setCopied] = useState(false);
   const [open, setOpen] = useState(false);
   const absolute = () => new URL(url, window.location.origin).href;
@@ -44,7 +52,9 @@ export function ShareLink({ url, title }: { url: string; title: string }) {
       <PopoverTrigger asChild>
         <Button
           type="button"
-          aria-label={copied ? "Project link copied" : `Share ${title}`}
+          variant="outline"
+          size="none"
+          aria-label={copied ? "Link copied" : `Share ${title}`}
           onClick={async (e) => {
             // iOS, Android and some desktop browsers have a native share sheet;
             // everything else gets the popover below.
@@ -56,9 +66,19 @@ export function ShareLink({ url, title }: { url: string; title: string }) {
               // dismissed by the user, nothing to do
             }
           }}
-          className="rounded-full border border-border px-4 py-2 text-xs hover:border-blue"
+          className={
+            compact
+              ? "h-[50px] w-[50px] rounded-xl bg-panel"
+              : "px-4 py-2 text-xs"
+          }
         >
-          {copied ? "Link copied" : `Share ${title}`}
+          {compact ? (
+            copied ? <LuCheck size={16} aria-hidden /> : <LuShare2 size={16} aria-hidden />
+          ) : copied ? (
+            "Link copied"
+          ) : (
+            `Share ${title}`
+          )}
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-52 p-1.5">

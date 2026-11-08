@@ -187,28 +187,32 @@ export default async function ProjectPage({
             </div>
           </div>
 
-          <div className="flex flex-col items-start gap-3 sm:items-end">
-            <ShareLink url={`/project/${p.id}`} title="project" />
-            <UpvoteButton
-              key={`${p.id}-${likedIds.has(p.id)}-${p.likes}`}
-              id={p.id}
-              initial={p.likes}
-              liked={likedIds.has(p.id)}
-              size="lg"
-            />
+          {/* Visit is the primary action, so it leads and spans the full width.
+              The quick actions share the row beneath it; upvote takes the slack. */}
+          <div className="flex w-full flex-col gap-2 sm:w-64">
+            <VisitLink id={p.id} url={p.url} />
             <div className="flex items-center gap-2">
-              <VisitLink id={p.id} url={p.url} />
+              <div className="flex-1 [&>button]:w-full [&>button]:justify-center">
+                <UpvoteButton
+                  key={`${p.id}-${likedIds.has(p.id)}-${p.likes}`}
+                  id={p.id}
+                  initial={p.likes}
+                  liked={likedIds.has(p.id)}
+                  size="lg"
+                />
+              </div>
               <BookmarkButton
                 key={`${p.id}-${savedIds.has(p.id)}`}
                 id={p.id}
                 saved={savedIds.has(p.id)}
                 size="lg"
               />
+              <ShareLink url={`/project/${p.id}`} title="project" compact />
             </div>
             {isOwner && (
               <Link
                 href={`/project/${p.id}/edit`}
-                className="font-mono text-[11px] uppercase tracking-wider text-muted transition-colors hover:text-blue"
+                className="mt-1 font-mono text-[11px] uppercase tracking-wider text-muted transition-colors hover:text-blue sm:text-right"
               >
                 Edit project
               </Link>
