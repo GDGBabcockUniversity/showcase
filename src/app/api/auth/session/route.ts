@@ -10,7 +10,17 @@ import {
   setAuthCookies,
 } from "@/lib/gdg-auth";
 
-const sameOrigin = (req: NextRequest) => req.headers.get("origin") === req.nextUrl.origin;
+// Compare against the host the browser hit; nextUrl.origin can be the internal host behind Vercel's proxy.
+const sameOrigin = (req: NextRequest) => {
+  const origin = req.headers.get("origin");
+  const host = req.headers.get("x-forwarded-host") ?? req.headers.get("host");
+  if (!origin || !host) return false;
+  try {
+    return new URL(origin).host === host;
+  } catch {
+    return false;
+  }
+};
 
 export async function GET(req: NextRequest) {
   const session = await auth.api.getSession({ headers: req.headers });
